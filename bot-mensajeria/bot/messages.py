@@ -11,62 +11,62 @@ BUSINESS = config.BUSINESS_NAME.upper()
 
 class Buttons:
     MENU_PRIMARY = [
-        {"id": "rastrear", "title": "📦 Rastrear"},
-        {"id": "cotizar", "title": "🧾 Cotizar"},
-        {"id": "mis_envios", "title": "📋 Mis envíos"},
+        {"id": "rastrear", "title": "Rastrear"},
+        {"id": "cotizar", "title": "Cotizar"},
+        {"id": "mis_envios", "title": "Mis envios"},
     ]
     MENU_SECONDARY = [
-        {"id": "reportar", "title": "❌ Reportar"},
-        {"id": "agente", "title": "🧑‍💼 Agente"},
-        {"id": "volver_menu", "title": "🏠 Menú"},
+        {"id": "reportar", "title": "Reportar"},
+        {"id": "agente", "title": "Agente"},
+        {"id": "volver_menu", "title": "Menu"},
     ]
-    BACK = [{"id": "volver_menu", "title": "🏠 Menú"}]
+    BACK = [{"id": "volver_menu", "title": "Menu"}]
     ORIGIN = [
-        {"id": "ubicacion_origen", "title": "📍 Ubicación"},
-        {"id": "escribir_origen", "title": "✏️ Escribir"},
-        {"id": "volver_menu", "title": "🏠 Menú"},
+        {"id": "ubicacion_origen", "title": "Ubicacion"},
+        {"id": "escribir_origen", "title": "Escribir"},
+        {"id": "volver_menu", "title": "Menu"},
     ]
     DESTINATION = [
-        {"id": "ubicacion_destino", "title": "📍 Ubicación"},
-        {"id": "escribir_destino", "title": "✏️ Escribir"},
-        {"id": "volver_menu", "title": "🏠 Menú"},
+        {"id": "ubicacion_destino", "title": "Ubicacion"},
+        {"id": "escribir_destino", "title": "Escribir"},
+        {"id": "volver_menu", "title": "Menu"},
     ]
     WEIGHTS = [
-        {"id": "peso_ligero", "title": "Menos 1 kg"},
+        {"id": "peso_ligero", "title": "Menos 1kg"},
         {"id": "peso_medio", "title": "1 - 5 kg"},
-        {"id": "peso_pesado", "title": "Más 5 kg"},
+        {"id": "peso_pesado", "title": "Mas de 5kg"},
     ]
     SERVICES = [
-        {"id": "servicio_express", "title": "⚡ Express"},
-        {"id": "servicio_estandar", "title": "🚀 Estándar"},
-        {"id": "servicio_economico", "title": "💼 Económico"},
+        {"id": "servicio_express", "title": "Express"},
+        {"id": "servicio_estandar", "title": "Estandar"},
+        {"id": "servicio_economico", "title": "Economico"},
     ]
     CONFIRM_QUOTE = [
-        {"id": "confirmar_envio", "title": "✅ Confirmar"},
-        {"id": "volver_menu", "title": "🏠 Menú"},
+        {"id": "confirmar_envio", "title": "Confirmar"},
+        {"id": "volver_menu", "title": "Menu"},
     ]
     CONFIRM_SHIPMENT = [
-        {"id": "si_confirmar", "title": "✅ Confirmar"},
-        {"id": "no_cancelar", "title": "❌ Cancelar"},
+        {"id": "si_confirmar", "title": "Confirmar"},
+        {"id": "no_cancelar", "title": "Cancelar"},
     ]
     INSTRUCTIONS = [
-        {"id": "inst_fragil", "title": "🔴 Frágil"},
-        {"id": "inst_urgente", "title": "⚡ Urgente"},
-        {"id": "inst_ninguna", "title": "➖ Ninguna"},
+        {"id": "inst_fragil", "title": "Fragil"},
+        {"id": "inst_urgente", "title": "Urgente"},
+        {"id": "inst_ninguna", "title": "Ninguna"},
     ]
     REPORT_TYPES = [
-        {"id": "rep_danado", "title": "📷 Dañado"},
-        {"id": "rep_no_llego", "title": "❓ No llegó"},
-        {"id": "rep_incompleto", "title": "📦 Incompleto"},
+        {"id": "rep_danado", "title": "Danado"},
+        {"id": "rep_no_llego", "title": "No llego"},
+        {"id": "rep_incompleto", "title": "Incompleto"},
     ]
     AFTER_TRACKING = [
-        {"id": "mis_envios", "title": "📋 Mis envíos"},
-        {"id": "agente", "title": "🧑‍💼 Agente"},
-        {"id": "volver_menu", "title": "🏠 Menú"},
+        {"id": "mis_envios", "title": "Mis envios"},
+        {"id": "agente", "title": "Agente"},
+        {"id": "volver_menu", "title": "Menu"},
     ]
     AFTER_REPORT = [
-        {"id": "agente", "title": "🧑‍💼 Agente"},
-        {"id": "volver_menu", "title": "🏠 Menú"},
+        {"id": "agente", "title": "Agente"},
+        {"id": "volver_menu", "title": "Menu"},
     ]
 
 

@@ -81,13 +81,14 @@ class SupabaseRepository:
         self.update_user_state(phone_number, data=data)
 
     def search_faq(self, question: str) -> Optional[str]:
-        query = quote((question or "").strip(), safe="")
-        if not query:
+        raw = (question or "").strip()
+        if not raw:
             return None
 
+        query = quote(raw, safe="")
         url = (
             f"{self._table(self.table_faq)}"
-            f"?select=respuesta&pregunta=ilike.*{query}*&limit=1"
+            f"?select=respuesta&pregunta=ilike.%25{query}%25&limit=1"
         )
         data = self._request("GET", url)
         return data[0]["respuesta"] if data else None

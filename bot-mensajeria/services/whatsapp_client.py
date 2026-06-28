@@ -137,10 +137,10 @@ class WhatsAppClient:
             )
             logger.info("WhatsApp %s: %s", description, response.status_code)
             if response.status_code >= 400:
-                logger.warning("Respuesta WhatsApp: %s", response.text[:500])
+                logger.warning("Error WhatsApp %s: %s", response.status_code, response.text[:500])
             return 200 <= response.status_code < 300
         except requests.RequestException as exc:
-            logger.exception("Error enviando %s: %s", description, exc)
+            logger.error("Error enviando %s: %s", description, exc)
             return False
 
     @staticmethod

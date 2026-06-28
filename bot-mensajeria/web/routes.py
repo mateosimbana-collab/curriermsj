@@ -111,11 +111,20 @@ def create_app(bot: CourierBot) -> Flask:
         if payload.get("object") != "whatsapp_business_account":
             return "Not Found", 404
 
+        if payload.get("entry", [{}])[0].get("changes", [{}])[0].get("value", {}).get("statuses"):
+            return "OK", 200
+
         try:
-            for event in WhatsAppWebhookParser.parse(payload):
-                bot.process(event)
+            events = WhatsAppWebhookParser.parse(payload)
+            logger.info("Webhook recibido: %d mensajes", len(events))
+            for event in events:
+                logger.info("Procesando mensaje de %s: %s", event.phone_number, event.text[:50])
+                try:
+                    bot.process(event)
+                except Exception as exc:
+                    logger.exception("Error procesando mensaje de %s: %s", event.phone_number, exc)
         except Exception as exc:
-            logger.exception("Error procesando webhook: %s", exc)
+            logger.exception("Error parseando webhook: %s", exc)
 
         return "OK", 200
 

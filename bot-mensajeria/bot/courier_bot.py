@@ -47,9 +47,14 @@ class CourierBot:
         }
 
     def process(self, event: IncomingMessage) -> None:
+        logger.info("Procesando evento de %s: '%s'", event.phone_number, event.text[:50])
         state = self.repository.get_user_state(event.phone_number)
         if not state:
-            self.repository.create_user_state(event.phone_number, Step.MENU, {})
+            logger.info("Nuevo usuario %s, enviando menu", event.phone_number)
+            try:
+                self.repository.create_user_state(event.phone_number, Step.MENU, {})
+            except Exception as exc:
+                logger.warning("Error creando estado para %s: %s", event.phone_number, exc)
             self.send_menu(event.phone_number)
             return
 
@@ -153,7 +158,7 @@ class CourierBot:
                 MessageTemplates.tracking_not_found(code),
                 Buttons.BACK,
             )
-            self.repository.update_user_state(event.phone_number, Step.MENU)
+            self.repository.reset_user_state(event.phone_number)
             return
 
         tracking_code = shipment.get("tracking_code") or f"CUR-{int(shipment['id']):05d}"
@@ -169,7 +174,7 @@ class CourierBot:
             "¿Qué quieres hacer ahora?",
             Buttons.AFTER_TRACKING,
         )
-        self.repository.update_user_state(event.phone_number, Step.MENU)
+        self.repository.reset_user_state(event.phone_number)
 
     def handle_quote_origin(
         self,
@@ -314,7 +319,7 @@ class CourierBot:
                 {"id": "volver_menu", "title": "🏠 Menú"},
             ],
         )
-        self.repository.update_user_state(phone_number, Step.MENU)
+        self.repository.reset_user_state(phone_number)
 
     def handle_report_type(
         self,
