@@ -630,7 +630,7 @@ curriermsj/
 
 | Fase | Objetivo | Estado |
 |---|---|---|
-| 1 | WhatsApp + Supabase + ngrok para demo | En progreso |
+| 1 | WhatsApp + Supabase + ngrok para demo | Completado |
 | 2 | Ajustar cotizaciones reales EE.UU. -> Ecuador | Pendiente |
 | 3 | Panel administrativo para agentes | Pendiente |
 | 4 | Eliminar Telegram legacy | Pendiente |
