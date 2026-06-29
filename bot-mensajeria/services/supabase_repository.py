@@ -140,7 +140,7 @@ class SupabaseRepository:
         )
         url = (
             f"{self._table(self.table_envios)}?select={columns}"
-            f"&telefono_remitente=eq.{quote(phone_number)}"
+            f"&phone_number=eq.{quote(phone_number)}"
             f"&order=creado_en.desc&limit={limit}"
         )
         return self._request("GET", url)

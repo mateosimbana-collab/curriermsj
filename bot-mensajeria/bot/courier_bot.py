@@ -454,7 +454,7 @@ class CourierBot:
             self.send_menu(event.phone_number)
             return
 
-        shipment_id = self.repository.save_shipment(self._shipment_payload(data))
+        shipment_id = self.repository.save_shipment(self._shipment_payload(data, event.phone_number))
         tracking_code = f"CUR-{shipment_id:05d}"
         self.repository.reset_user_state(event.phone_number)
         self.whatsapp.send_buttons(
@@ -463,9 +463,10 @@ class CourierBot:
             Buttons.AFTER_TRACKING,
         )
 
-    def _shipment_payload(self, data: dict[str, Any]) -> dict[str, Any]:
+    def _shipment_payload(self, data: dict[str, Any], phone_number: str = "") -> dict[str, Any]:
         now = datetime.now()
         return {
+            "phone_number": phone_number,
             "remitente": data.get("remitente"),
             "telefono_remitente": data.get("telefono_remitente"),
             "destinatario": data.get("destinatario"),
