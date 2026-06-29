@@ -3,7 +3,7 @@ import re
 from datetime import datetime
 from typing import Any, Callable
 
-from bot.messages import Buttons, MessageTemplates, build_quote_options
+from bot.messages import LINE, Buttons, MessageTemplates, build_quote_options
 from domain.constants import (
     INSTRUCTIONS,
     PACKAGE_TYPES,
@@ -90,9 +90,9 @@ class CourierBot:
         )
         self.whatsapp.send_buttons(
             phone_number,
-            "También puedo ayudarte con soporte o volver al menú principal.",
+            "Soporte y opciones adicionales:",
             Buttons.MENU_SECONDARY,
-            footer="Elige una opción",
+            footer="Elige una opcion",
         )
 
     def handle_menu(self, event: IncomingMessage, action: str, data: dict[str, Any]) -> None:
@@ -104,7 +104,10 @@ class CourierBot:
 
         if action == "cotizar":
             self.repository.update_user_state(phone, Step.QUOTE_ORIGIN, {})
-            self.whatsapp.send_buttons(phone, MessageTemplates.ask_quote_origin(), Buttons.ORIGIN)
+            self.whatsapp.send_location_request(
+                phone,
+                MessageTemplates.ask_quote_origin_location(),
+            )
             return
 
         if action == "mis_envios":
@@ -131,7 +134,7 @@ class CourierBot:
 
         faq_response = self.repository.search_faq(event.text)
         if faq_response:
-            self.whatsapp.send_text(phone, f"💬 *Respuesta rápida*\n━━━━━━━━━━━━━━━━━━\n{faq_response}")
+            self.whatsapp.send_text(phone, f"*Respuesta rapida*\n{LINE}\n{faq_response}")
         else:
             self.whatsapp.send_text(phone, MessageTemplates.unknown())
         self.send_menu(phone)
@@ -146,7 +149,7 @@ class CourierBot:
         if not code:
             self.whatsapp.send_buttons(
                 event.phone_number,
-                "❌ Formato incorrecto. Usa *CUR-00001* o solo el número.",
+                "Formato incorrecto. Usa *CUR-00001* o solo el numero.",
                 Buttons.BACK,
             )
             return
@@ -171,7 +174,7 @@ class CourierBot:
 
         self.whatsapp.send_buttons(
             event.phone_number,
-            "¿Qué quieres hacer ahora?",
+            "Que deseas hacer?",
             Buttons.AFTER_TRACKING,
         )
         self.repository.reset_user_state(event.phone_number)
@@ -182,24 +185,28 @@ class CourierBot:
         action: str,
         data: dict[str, Any],
     ) -> None:
-        if action == "ubicacion_origen":
-            self.whatsapp.send_buttons(event.phone_number, MessageTemplates.location_help(), Buttons.BACK)
+        if event.has_location:
+            data["origen"] = self._location_or_text(event)
+            self.repository.update_user_state(event.phone_number, Step.QUOTE_DESTINATION, data)
+            self.whatsapp.send_location_request(
+                event.phone_number,
+                MessageTemplates.ask_quote_destination_location(),
+            )
             return
 
         if action == "escribir_origen":
             self.whatsapp.send_buttons(
                 event.phone_number,
-                "✏️ Escribe la dirección de origen en Estados Unidos.",
+                "Escribe la direccion de origen en Estados Unidos.",
                 Buttons.BACK,
             )
             return
 
         data["origen"] = self._location_or_text(event)
         self.repository.update_user_state(event.phone_number, Step.QUOTE_DESTINATION, data)
-        self.whatsapp.send_buttons(
+        self.whatsapp.send_location_request(
             event.phone_number,
-            MessageTemplates.ask_quote_destination(),
-            Buttons.DESTINATION,
+            MessageTemplates.ask_quote_destination_location(),
         )
 
     def handle_quote_destination(
@@ -208,14 +215,21 @@ class CourierBot:
         action: str,
         data: dict[str, Any],
     ) -> None:
-        if action == "ubicacion_destino":
-            self.whatsapp.send_buttons(event.phone_number, MessageTemplates.location_help(), Buttons.BACK)
+        if event.has_location:
+            data["destino"] = self._location_or_text(event)
+            self.repository.update_user_state(event.phone_number, Step.QUOTE_PACKAGE_TYPE, data)
+            self.whatsapp.send_list(
+                event.phone_number,
+                MessageTemplates.ask_package_type(),
+                "Elegir paquete",
+                MessageTemplates.package_type_sections(),
+            )
             return
 
         if action == "escribir_destino":
             self.whatsapp.send_buttons(
                 event.phone_number,
-                "✏️ Escribe la ciudad o dirección de destino en Ecuador.",
+                "Escribe la ciudad o direccion de destino en Ecuador.",
                 Buttons.BACK,
             )
             return
@@ -227,7 +241,6 @@ class CourierBot:
             MessageTemplates.ask_package_type(),
             "Elegir paquete",
             MessageTemplates.package_type_sections(),
-            footer="Más de 3 opciones usan lista de WhatsApp",
         )
 
     def handle_quote_package_type(
@@ -300,7 +313,7 @@ class CourierBot:
     ) -> None:
         if action != "confirmar_envio":
             self.repository.reset_user_state(event.phone_number)
-            self.whatsapp.send_text(event.phone_number, "Cotización cancelada.")
+            self.whatsapp.send_text(event.phone_number, "Cotizacion cancelada.")
             self.send_menu(event.phone_number)
             return
 
@@ -312,11 +325,11 @@ class CourierBot:
         self.whatsapp.send_text(phone_number, MessageTemplates.shipments_list(shipments))
         self.whatsapp.send_buttons(
             phone_number,
-            "¿Qué quieres hacer ahora?",
+            "Que deseas hacer?",
             [
-                {"id": "rastrear", "title": "📦 Rastrear"},
-                {"id": "cotizar", "title": "🧾 Cotizar"},
-                {"id": "volver_menu", "title": "🏠 Menú"},
+                {"id": "rastrear", "title": "Rastrear"},
+                {"id": "cotizar", "title": "Cotizar"},
+                {"id": "volver_menu", "title": "Menu"},
             ],
         )
         self.repository.reset_user_state(phone_number)
@@ -397,7 +410,10 @@ class CourierBot:
     ) -> None:
         data["telefono_destinatario"] = event.text.strip()
         self.repository.update_user_state(event.phone_number, Step.NEW_SHIPMENT_DESTINATION, data)
-        self.whatsapp.send_buttons(event.phone_number, MessageTemplates.ask_exact_destination(), Buttons.BACK)
+        self.whatsapp.send_location_request(
+            event.phone_number,
+            MessageTemplates.ask_exact_destination_location(),
+        )
 
     def handle_new_shipment_destination(
         self,
@@ -450,7 +466,7 @@ class CourierBot:
     ) -> None:
         if action != "si_confirmar":
             self.repository.reset_user_state(event.phone_number)
-            self.whatsapp.send_text(event.phone_number, "❌ Envío cancelado.")
+            self.whatsapp.send_text(event.phone_number, "Envio cancelado.")
             self.send_menu(event.phone_number)
             return
 

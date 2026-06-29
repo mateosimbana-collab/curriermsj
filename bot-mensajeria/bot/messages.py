@@ -21,16 +21,6 @@ class Buttons:
         {"id": "volver_menu", "title": "Menu"},
     ]
     BACK = [{"id": "volver_menu", "title": "Menu"}]
-    ORIGIN = [
-        {"id": "ubicacion_origen", "title": "Ubicacion"},
-        {"id": "escribir_origen", "title": "Escribir"},
-        {"id": "volver_menu", "title": "Menu"},
-    ]
-    DESTINATION = [
-        {"id": "ubicacion_destino", "title": "Ubicacion"},
-        {"id": "escribir_destino", "title": "Escribir"},
-        {"id": "volver_menu", "title": "Menu"},
-    ]
     WEIGHTS = [
         {"id": "peso_ligero", "title": "Menos 1kg"},
         {"id": "peso_medio", "title": "1 - 5 kg"},
@@ -74,88 +64,101 @@ class MessageTemplates:
     @staticmethod
     def menu() -> str:
         return (
-            f"🟢 *{BUSINESS}* • Asistente Virtual\n"
+            f"*{BUSINESS}* — Asistente Virtual\n"
             f"{LINE}\n"
-            f"👋 ¡Hola! Soy *{config.BOT_NAME}*, tu asistente.\n"
-            f"Ruta principal: *{config.ROUTE_LABEL}*.\n"
-            "¿Qué necesitas hoy?\n"
+            f"Bienvenido, soy *{config.BOT_NAME}*, tu asistente de envios.\n"
+            f"Ruta principal: *{config.ROUTE_LABEL}*\n"
             f"{LINE}\n"
-            "📦 *1.* Rastrear mi paquete\n"
-            "🧾 *2.* Cotizar un envío\n"
-            "📋 *3.* Ver mis envíos activos\n"
-            "❌ *4.* Reportar un problema\n"
-            "🧑‍💼 *5.* Hablar con un agente\n"
+            "1. Rastrear paquete\n"
+            "2. Cotizar envio\n"
+            "3. Mis envios activos\n"
+            "4. Reportar problema\n"
+            "5. Hablar con agente\n"
             f"{LINE}\n"
-            "_Usa los botones o responde con el número_ 👇"
+            "Selecciona una opcion usando los botones."
         )
 
     @staticmethod
     def ask_tracking() -> str:
         return (
-            f"📦 *RASTREAR PAQUETE*\n"
+            f"*RASTREAR PAQUETE*\n"
             f"{LINE}\n"
-            "Envíame tu código de seguimiento.\n\n"
+            "Ingresa el codigo de seguimiento.\n\n"
             "Ejemplo: *CUR-00001*\n"
             f"{LINE}\n"
-            "_También puedes escribir solo el número._"
+            "Tambien puedes escribir solo el numero."
         )
 
     @staticmethod
     def tracking_card(shipment: dict[str, Any], tracking_code: str) -> str:
         status = (shipment.get("estado") or "pendiente").lower()
         return (
-            f"╔══════════════════════╗\n"
-            f"   🚀 *{BUSINESS}*\n"
-            f"   _Entregas rápidas y seguras_\n"
-            f"╚══════════════════════╝\n"
-            f"📦 *PAQUETE #{tracking_code}*\n"
+            f"*PAQUETE #{tracking_code}*\n"
             f"{LINE}\n"
-            f"👤 Para: *{_value(shipment.get('destinatario'))}*\n"
-            f"📍 Destino: *{_value(shipment.get('direccion_destino'))}*\n"
-            f"⚖️ Peso: *{_value(shipment.get('peso'))}*\n"
-            f"🚚 Servicio: *{_value(shipment.get('servicio_envio'), 'Pendiente')}*\n"
+            f"Destinatario: *{_value(shipment.get('destinatario'))}*\n"
+            f"Destino: *{_value(shipment.get('direccion_destino'))}*\n"
+            f"Peso: *{_value(shipment.get('peso'))}*\n"
+            f"Servicio: *{_value(shipment.get('servicio_envio'), 'Pendiente')}*\n"
             f"{LINE}\n"
-            "🗺️ *ESTADO DEL ENVÍO:*\n"
+            f"*ESTADO:*\n"
             f"{_status_lines(status)}\n"
             f"{LINE}\n"
-            f"🕐 Estimado: *{_value(shipment.get('entrega_estimada'), 'Por confirmar')}*\n"
-            f"{LINE}\n"
-            "_Elige una opción_ 👇"
+            f"Entrega estimada: *{_value(shipment.get('entrega_estimada'), 'Por confirmar')}*"
         )
 
     @staticmethod
     def tracking_not_found(code: str) -> str:
         return (
-            f"❌ *NO ENCONTRÉ EL PAQUETE*\n"
+            f"*NO SE ENCONTRO EL PAQUETE*\n"
             f"{LINE}\n"
-            f"Código consultado: *{code}*\n\n"
-            "Revisa que tenga este formato:\n"
+            f"Codigo consultado: *{code}*\n\n"
+            "Verifica el formato:\n"
             "*CUR-00001*"
         )
 
     @staticmethod
     def ask_quote_origin() -> str:
         return (
-            f"💰 *COTIZA TU ENVÍO*\n"
+            f"*COTIZAR ENVIO*\n"
             f"{LINE}\n"
-            "📤 Primero necesito el origen en *Estados Unidos*.\n\n"
-            "Puedes enviar ubicación o escribir la dirección."
+            "Indica el origen en *Estados Unidos*.\n\n"
+            "Puedes enviar la ubicacion o escribir la direccion."
+        )
+
+    @staticmethod
+    def ask_quote_origin_location() -> str:
+        return (
+            f"*COTIZAR ENVIO*\n"
+            f"{LINE}\n"
+            "Indica el origen en *Estados Unidos*.\n\n"
+            "Presiona el boton para compartir tu ubicacion\n"
+            "o escribe la direccion directamente."
         )
 
     @staticmethod
     def ask_quote_destination() -> str:
         return (
-            f"📥 *DESTINO EN ECUADOR*\n"
+            f"*DESTINO EN ECUADOR*\n"
             f"{LINE}\n"
-            "Ahora dime a qué ciudad o dirección de Ecuador llegará el paquete."
+            "Indica la ciudad o direccion de destino en Ecuador."
+        )
+
+    @staticmethod
+    def ask_quote_destination_location() -> str:
+        return (
+            f"*DESTINO EN ECUADOR*\n"
+            f"{LINE}\n"
+            "Indica el destino en *Ecuador*.\n\n"
+            "Presiona el boton para compartir la ubicacion\n"
+            "o escribe la ciudad o direccion."
         )
 
     @staticmethod
     def ask_package_type() -> str:
         return (
-            f"📦 *TIPO DE PAQUETE*\n"
+            f"*TIPO DE PAQUETE*\n"
             f"{LINE}\n"
-            "Elige la opción que más se parezca a tu envío."
+            "Selecciona el tipo de paquete a enviar."
         )
 
     @staticmethod
@@ -167,12 +170,12 @@ class MessageTemplates:
                     {
                         "id": "tipo_documento",
                         "title": "Documentos",
-                        "description": "Sobres, papeles o trámites",
+                        "description": "Sobres, papeles o tramites",
                     },
                     {
                         "id": "tipo_pequeno",
-                        "title": "Paquete pequeño",
-                        "description": "Accesorios o artículos pequeños",
+                        "title": "Paquete pequeno",
+                        "description": "Accesorios o articulos pequenos",
                     },
                     {
                         "id": "tipo_mediano",
@@ -191,199 +194,208 @@ class MessageTemplates:
     @staticmethod
     def ask_weight() -> str:
         return (
-            f"⚖️ *PESO APROXIMADO*\n"
+            f"*PESO APROXIMADO*\n"
             f"{LINE}\n"
-            "Selecciona un rango de peso para calcular la cotización."
+            "Selecciona el rango de peso del paquete."
         )
 
     @staticmethod
     def quote_options(data: dict[str, Any], options: dict[str, dict[str, Any]]) -> str:
         lines = [
-            f"💰 *TU COTIZACIÓN*",
+            f"*COTIZACION*",
             LINE,
-            f"📤 Origen: *{_value(data.get('origen'))}*",
-            f"📥 Destino: *{_value(data.get('destino'))}*",
-            f"📦 Paquete: *{_value(data.get('tipo_paquete'))}*",
-            f"⚖️ Peso: *{_value(data.get('peso'))}*",
+            f"Origen: *{_value(data.get('origen'))}*",
+            f"Destino: *{_value(data.get('destino'))}*",
+            f"Paquete: *{_value(data.get('tipo_paquete'))}*",
+            f"Peso: *{_value(data.get('peso'))}*",
             LINE,
-            "📋 *OPCIONES DE ENVÍO:*",
+            "*OPCIONES DE ENVIO:*",
         ]
         for service_id, option in options.items():
             service = SHIPPING_SERVICES[service_id]
             lines.append(
-                f"{service['icon']} *{service['label']}* › ${option['price']:.2f} USD"
+                f"{service['icon']} *{service['label']}* — ${option['price']:.2f} USD"
             )
-        lines.extend([LINE, "_¿Con cuál te quedamos?_ 👇"])
+        lines.extend([LINE, "Elige una opcion de envio."])
         return "\n".join(lines)
 
     @staticmethod
     def quote_summary(data: dict[str, Any]) -> str:
         return (
-            f"✅ *CONFIRMAR COTIZACIÓN*\n"
+            f"*CONFIRMAR COTIZACION*\n"
             f"{LINE}\n"
-            f"📤 Origen: *{_value(data.get('origen'))}*\n"
-            f"📥 Destino: *{_value(data.get('destino'))}*\n"
-            f"📦 Paquete: *{_value(data.get('tipo_paquete'))}*\n"
-            f"⚖️ Peso: *{_value(data.get('peso'))}*\n"
-            f"🚚 Servicio: *{_value(data.get('servicio_envio'))}*\n"
-            f"🕐 Tiempo estimado: *{_value(data.get('entrega_estimada'))}*\n"
+            f"Origen: *{_value(data.get('origen'))}*\n"
+            f"Destino: *{_value(data.get('destino'))}*\n"
+            f"Paquete: *{_value(data.get('tipo_paquete'))}*\n"
+            f"Peso: *{_value(data.get('peso'))}*\n"
+            f"Servicio: *{_value(data.get('servicio_envio'))}*\n"
+            f"Tiempo estimado: *{_value(data.get('entrega_estimada'))}*\n"
             f"{LINE}\n"
-            f"💵 *Total: ${float(data.get('cotizacion', 0)):.2f} USD*\n"
+            f"Total: *${float(data.get('cotizacion', 0)):.2f} USD*\n"
             f"{LINE}\n"
-            "_Confirma para registrar tus datos._"
+            "Confirma para continuar con el registro."
         )
 
     @staticmethod
     def ask_sender_name() -> str:
         return (
-            f"👤 *DATOS DEL ENVÍO*\n"
+            f"*DATOS DEL ENVIO*\n"
             f"{LINE}\n"
-            "Perfecto. ¿Cuál es tu nombre completo?"
+            "Cual es tu nombre completo?"
         )
 
     @staticmethod
     def ask_sender_phone() -> str:
-        return "📱 ¿Cuál es tu número de teléfono?"
+        return "Cual es tu numero de telefono?"
 
     @staticmethod
     def ask_recipient_name() -> str:
-        return "👤 ¿Cuál es el nombre completo del destinatario?"
+        return "Cual es el nombre completo del destinatario?"
 
     @staticmethod
     def ask_recipient_phone() -> str:
-        return "📱 ¿Cuál es el teléfono del destinatario?"
+        return "Cual es el telefono del destinatario?"
 
     @staticmethod
     def ask_exact_destination() -> str:
         return (
-            f"📍 *DIRECCIÓN FINAL*\n"
+            f"*DIRECCION FINAL*\n"
             f"{LINE}\n"
-            "Escribe la dirección exacta en Ecuador para la entrega."
+            "Escribe la direccion exacta de entrega en Ecuador."
+        )
+
+    @staticmethod
+    def ask_exact_destination_location() -> str:
+        return (
+            f"*DIRECCION FINAL*\n"
+            f"{LINE}\n"
+            "Indica la direccion de entrega en *Ecuador*.\n\n"
+            "Presiona el boton para compartir la ubicacion\n"
+            "o escribe la direccion directamente."
         )
 
     @staticmethod
     def ask_instructions() -> str:
         return (
-            f"📝 *INSTRUCCIONES ESPECIALES*\n"
+            f"*INSTRUCCIONES*\n"
             f"{LINE}\n"
-            "¿Tu paquete necesita algún cuidado?"
+            "El paquete requiere algun cuidado especial?"
         )
 
     @staticmethod
     def shipment_summary(data: dict[str, Any]) -> str:
         return (
-            f"📋 *RESUMEN DEL ENVÍO*\n"
+            f"*RESUMEN DEL ENVIO*\n"
             f"{LINE}\n"
-            f"👤 Remitente: *{_value(data.get('remitente'))}*\n"
-            f"📱 Teléfono: *{_value(data.get('telefono_remitente'))}*\n"
-            f"👤 Destinatario: *{_value(data.get('destinatario'))}*\n"
-            f"📱 Teléfono dest.: *{_value(data.get('telefono_destinatario'))}*\n"
-            f"📤 Origen: *{_value(data.get('origen'))}*\n"
-            f"📥 Destino: *{_value(data.get('direccion_destino') or data.get('destino'))}*\n"
-            f"📦 Paquete: *{_value(data.get('tipo_paquete'))}*\n"
-            f"⚖️ Peso: *{_value(data.get('peso'))}*\n"
-            f"🚚 Servicio: *{_value(data.get('servicio_envio'))}*\n"
-            f"📝 Instrucciones: *{_value(data.get('instrucciones'))}*\n"
+            f"Remitente: *{_value(data.get('remitente'))}*\n"
+            f"Telefono: *{_value(data.get('telefono_remitente'))}*\n"
+            f"Destinatario: *{_value(data.get('destinatario'))}*\n"
+            f"Telefono dest.: *{_value(data.get('telefono_destinatario'))}*\n"
+            f"Origen: *{_value(data.get('origen'))}*\n"
+            f"Destino: *{_value(data.get('direccion_destino') or data.get('destino'))}*\n"
+            f"Paquete: *{_value(data.get('tipo_paquete'))}*\n"
+            f"Peso: *{_value(data.get('peso'))}*\n"
+            f"Servicio: *{_value(data.get('servicio_envio'))}*\n"
+            f"Instrucciones: *{_value(data.get('instrucciones'))}*\n"
             f"{LINE}\n"
-            f"💵 *Total: ${float(data.get('cotizacion', 0)):.2f} USD*\n"
+            f"Total: *${float(data.get('cotizacion', 0)):.2f} USD*\n"
             f"{LINE}\n"
-            "¿Confirmas este envío?"
+            "Confirmar el envio?"
         )
 
     @staticmethod
     def shipment_created(tracking_code: str, data: dict[str, Any]) -> str:
         return (
-            f"✅ *ENVÍO REGISTRADO*\n"
+            f"*ENVIO REGISTRADO*\n"
             f"{LINE}\n"
-            f"📦 Código: *{tracking_code}*\n"
-            f"👤 Para: *{_value(data.get('destinatario'))}*\n"
-            f"📍 Destino: *{_value(data.get('direccion_destino') or data.get('destino'))}*\n"
-            f"🚚 Servicio: *{_value(data.get('servicio_envio'))}*\n"
-            f"💵 Total: *${float(data.get('cotizacion', 0)):.2f} USD*\n"
+            f"Codigo: *{tracking_code}*\n"
+            f"Destinatario: *{_value(data.get('destinatario'))}*\n"
+            f"Destino: *{_value(data.get('direccion_destino') or data.get('destino'))}*\n"
+            f"Servicio: *{_value(data.get('servicio_envio'))}*\n"
+            f"Total: *${float(data.get('cotizacion', 0)):.2f} USD*\n"
             f"{LINE}\n"
-            "Nuestro equipo se pondrá en contacto contigo."
+            "Nuestro equipo se pondra en contacto contigo."
         )
 
     @staticmethod
     def shipments_list(shipments: list[dict[str, Any]]) -> str:
         if not shipments:
             return (
-                f"📋 *MIS ENVÍOS*\n"
+                f"*MIS ENVIOS*\n"
                 f"{LINE}\n"
-                "No tienes envíos registrados con este número todavía."
+                "No tienes envios registrados con este numero."
             )
 
-        lines = [f"📋 *MIS ENVÍOS ACTIVOS*", LINE]
+        lines = [f"*MIS ENVIOS ACTIVOS*", LINE]
         for shipment in shipments:
             code = shipment.get("tracking_code") or f"CUR-{int(shipment['id']):05d}"
             lines.extend(
                 [
-                    f"📦 *{code}*",
-                    f"👤 { _value(shipment.get('destinatario')) }",
-                    f"📍 { _value(shipment.get('direccion_destino')) }",
-                    f"🚚 { _value(shipment.get('estado'), 'pendiente') }",
+                    f"*{code}*",
+                    f"Destinatario: { _value(shipment.get('destinatario')) }",
+                    f"Destino: { _value(shipment.get('direccion_destino')) }",
+                    f"Estado: { _value(shipment.get('estado'), 'pendiente') }",
                     "",
                 ]
             )
-        lines.extend([LINE, "_Puedes rastrear uno con su código._"])
+        lines.extend([LINE, "Usa Rastrear para consultar un envio."])
         return "\n".join(lines)
 
     @staticmethod
     def report_categories() -> str:
         return (
-            f"⚠️ *REPORTAR PROBLEMA*\n"
+            f"*REPORTAR PROBLEMA*\n"
             f"{LINE}\n"
-            "Lamentamos el inconveniente.\n"
-            "Elige el tipo de problema para ayudarte más rápido."
+            "Selecciona el tipo de problema."
         )
 
     @staticmethod
     def ask_report_description(category: str) -> str:
         return (
-            f"⚠️ *{category.upper()}*\n"
+            f"*{category.upper()}*\n"
             f"{LINE}\n"
-            "Cuéntame qué pasó.\n\n"
-            "Si tienes código de paquete, inclúyelo.\n"
-            "Ejemplo: *CUR-00012 no llegó en fecha*"
+            "Describe lo que sucedio.\n\n"
+            "Si tienes el codigo del paquete, incluyelo.\n"
+            "Ejemplo: CUR-00012 no llego en fecha"
         )
 
     @staticmethod
     def report_created(report_id: int, category: str, tracking_code: str | None = None) -> str:
-        code_line = f"📦 Paquete: *{tracking_code}*\n" if tracking_code else ""
+        code_line = f"Paquete: *{tracking_code}*\n" if tracking_code else ""
         return (
-            f"⚠️ *REPORTE #INC-{report_id:04d}*\n"
+            f"*REPORTE #INC-{report_id:04d}*\n"
             f"{LINE}\n"
-            "Tu caso ya fue registrado.\n"
+            "Caso registrado correctamente.\n"
             f"{code_line}"
-            f"📌 Tipo: *{category}*\n"
-            f"🕐 Reportado: *{datetime.now().strftime('%d/%m/%Y %H:%M')}*\n"
-            "👨‍💻 Agente asignado: *Equipo soporte*\n"
+            f"Tipo: *{category}*\n"
+            f"Fecha: *{datetime.now().strftime('%d/%m/%Y %H:%M')}*\n"
+            f"Agente: *Equipo soporte*\n"
             f"{LINE}\n"
-            "Un agente revisará el caso y te contactará."
+            "Un agente revisara el caso y te contactara."
         )
 
     @staticmethod
     def agent() -> str:
         return (
-            f"🧑‍💼 *HABLAR CON UN AGENTE*\n"
+            f"*HABLAR CON UN AGENTE*\n"
             f"{LINE}\n"
-            "Ya avisamos al equipo de soporte.\n"
+            "Notificamos al equipo de soporte.\n"
             f"Horario: *{config.SUPPORT_HOURS}*"
         )
 
     @staticmethod
     def location_help() -> str:
         return (
-            f"📍 *ENVIAR UBICACIÓN*\n"
+            f"*ENVIAR UBICACION*\n"
             f"{LINE}\n"
-            "Toca el clip o botón de adjuntar en WhatsApp y elige *Ubicación*."
+            "Usa el boton de compartir ubicacion en WhatsApp."
         )
 
     @staticmethod
     def unknown() -> str:
         return (
-            "No entendí tu mensaje todavía.\n"
-            "Te dejo el menú para que elijas una opción."
+            "No reconozco ese mensaje.\n"
+            "Usa los botones del menu para navegar."
         )
 
 
