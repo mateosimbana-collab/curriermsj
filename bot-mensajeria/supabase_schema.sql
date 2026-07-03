@@ -46,6 +46,7 @@ ALTER TABLE envios ADD COLUMN IF NOT EXISTS peso TEXT;
 ALTER TABLE envios ADD COLUMN IF NOT EXISTS dimensiones TEXT;
 ALTER TABLE envios ADD COLUMN IF NOT EXISTS servicio_envio TEXT;
 ALTER TABLE envios ADD COLUMN IF NOT EXISTS valor_cotizado NUMERIC(10,2);
+ALTER TABLE envios ADD COLUMN IF NOT EXISTS costo_producto NUMERIC(10,2) DEFAULT 0;
 ALTER TABLE envios ADD COLUMN IF NOT EXISTS entrega_estimada TEXT;
 ALTER TABLE envios ADD COLUMN IF NOT EXISTS imagen_url TEXT;
 ALTER TABLE envios ADD COLUMN IF NOT EXISTS fecha_envio TEXT;
@@ -99,6 +100,39 @@ ALTER TABLE reportes ADD COLUMN IF NOT EXISTS categoria TEXT;
 ALTER TABLE reportes ADD COLUMN IF NOT EXISTS estado TEXT DEFAULT 'abierto';
 ALTER TABLE reportes ADD COLUMN IF NOT EXISTS agente_asignado TEXT DEFAULT 'Equipo soporte';
 
+-- Finanzas del dueno: caja, gastos, planilla y margenes
+CREATE TABLE IF NOT EXISTS movimientos_financieros (
+    id SERIAL PRIMARY KEY,
+    tipo TEXT NOT NULL CHECK (tipo IN ('ingreso', 'egreso')),
+    categoria TEXT NOT NULL,
+    descripcion TEXT,
+    monto NUMERIC(10,2) NOT NULL DEFAULT 0,
+    tipo_gasto TEXT CHECK (tipo_gasto IN ('fijo', 'variable')),
+    fecha TIMESTAMPTZ DEFAULT NOW(),
+    creado_en TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS planilla_personal (
+    id SERIAL PRIMARY KEY,
+    nombre TEXT NOT NULL,
+    cargo TEXT,
+    sueldo NUMERIC(10,2) NOT NULL DEFAULT 0,
+    fecha_pago TIMESTAMPTZ,
+    descuentos NUMERIC(10,2) DEFAULT 0,
+    estado_pago TEXT DEFAULT 'pendiente',
+    creado_en TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS margenes_producto (
+    id SERIAL PRIMARY KEY,
+    producto TEXT NOT NULL,
+    categoria TEXT,
+    precio_venta NUMERIC(10,2) NOT NULL DEFAULT 0,
+    costo_producto NUMERIC(10,2) NOT NULL DEFAULT 0,
+    unidades INTEGER DEFAULT 1,
+    creado_en TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- Funcion para generar tracking code automatico
 CREATE OR REPLACE FUNCTION generar_tracking_code()
 RETURNS TRIGGER AS $$
@@ -131,6 +165,9 @@ ALTER TABLE envios ENABLE ROW LEVEL SECURITY;
 ALTER TABLE estado_usuario ENABLE ROW LEVEL SECURITY;
 ALTER TABLE faq ENABLE ROW LEVEL SECURITY;
 ALTER TABLE reportes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE movimientos_financieros ENABLE ROW LEVEL SECURITY;
+ALTER TABLE planilla_personal ENABLE ROW LEVEL SECURITY;
+ALTER TABLE margenes_producto ENABLE ROW LEVEL SECURITY;
 
 -- Politicas de acceso.
 -- El backend Flask debe usar service_role key, no anon key.
@@ -154,11 +191,58 @@ DROP POLICY IF EXISTS "Service role acceso total reportes" ON reportes;
 CREATE POLICY "Service role acceso total reportes" ON reportes
     FOR ALL USING (auth.role() = 'service_role');
 
+DROP POLICY IF EXISTS "Service role acceso total movimientos_financieros" ON movimientos_financieros;
+CREATE POLICY "Service role acceso total movimientos_financieros" ON movimientos_financieros
+    FOR ALL USING (auth.role() = 'service_role');
+
+DROP POLICY IF EXISTS "Service role acceso total planilla_personal" ON planilla_personal;
+CREATE POLICY "Service role acceso total planilla_personal" ON planilla_personal
+    FOR ALL USING (auth.role() = 'service_role');
+
+DROP POLICY IF EXISTS "Service role acceso total margenes_producto" ON margenes_producto;
+CREATE POLICY "Service role acceso total margenes_producto" ON margenes_producto
+    FOR ALL USING (auth.role() = 'service_role');
+
 ALTER TABLE clientes ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "Service role acceso total clientes" ON clientes;
 CREATE POLICY "Service role acceso total clientes" ON clientes
     FOR ALL USING (auth.role() = 'service_role');
+
+-- Llaves foraneas
+DO $$ BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'fk_envios_phone'
+    ) THEN
+        ALTER TABLE envios ADD CONSTRAINT fk_envios_phone
+            FOREIGN KEY (phone_number) REFERENCES clientes(phone_number)
+            ON DELETE SET NULL ON UPDATE CASCADE;
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'fk_reportes_phone'
+    ) THEN
+        ALTER TABLE reportes ADD CONSTRAINT fk_reportes_phone
+            FOREIGN KEY (phone_number) REFERENCES clientes(phone_number)
+            ON DELETE CASCADE ON UPDATE CASCADE;
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'fk_reportes_tracking'
+    ) THEN
+        ALTER TABLE reportes ADD CONSTRAINT fk_reportes_tracking
+            FOREIGN KEY (tracking_code) REFERENCES envios(tracking_code)
+            ON DELETE SET NULL ON UPDATE CASCADE;
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'fk_estado_usuario_phone'
+    ) THEN
+        ALTER TABLE estado_usuario ADD CONSTRAINT fk_estado_usuario_phone
+            FOREIGN KEY (phone_number) REFERENCES clientes(phone_number)
+            ON DELETE CASCADE ON UPDATE CASCADE;
+    END IF;
+END $$;
 
 -- Datos iniciales de FAQ
 INSERT INTO faq (pregunta, respuesta, categoria) VALUES

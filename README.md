@@ -239,28 +239,16 @@ stateDiagram-v2
 
 ## Dashboard Administrativo
 
-Panel web construido con **React 19 + Chakra UI (Horizon UI) + Vite + Recharts** en `dashboard/`.
+Panel web construido con HTML + Tailwind CSS + Chart.js + Lucide Icons servido directamente por Flask.
 
-### Vistas
+Hay **dos paneles** con distintos niveles de informacion:
 
-| Ruta | Vista | Descripcion |
-|---|---|---|
-| `/admin/default` | Main Dashboard | KPIs de envios, graficos por dia y tipo, tabla de envios recientes |
-| `/admin/clientes` | Clientes | Todos los clientes con contador de envios (total/pendientes), buscador |
-| `/admin/pendientes` |Envios | Pestanas: Pendientes / En Ruta / Entregados con KPIs y tabla detallada |
-| `/admin/reportes` | Reportes | Reportes e incidencias con pestanas Todos / Abiertos / Cerrados |
-| `/admin/observability` | Observabilidad | Latencia p99, throughput, errores, DB pool, servicios, CPU, eventos |
+| Dashboard | Ruta | Rol | Que muestra |
+|---|---|---|---|
+| Dueno | `/dashboard` o `/dashboard/dueno` | Propietario | KPIs clave, grafico de envios, estado de servicios, envios recientes |
+| Soporte | `/dashboard/soporte` | Agente de soporte | TODO: observabilidad, sesiones, clientes, envios detallados, reportes, configuracion |
 
-### Ejecutar
-
-```bash
-cd dashboard
-npm install
-npm run dev      # Servidor en http://localhost:5173
-npm run build    # Build de produccion
-```
-
-Los datos se obtienen del backend Flask (`/api/envios` y `/api/system-stats`). Sin backend, las tablas se muestran vacias sin errores.
+Ademas, se conserva la version React + Chakra UI (Horizon UI) legacy en `dashboard/src/` que se puede reconstruir con `npm run build`.
 
 ## Tablas que debes crear en Supabase
 
@@ -459,6 +447,8 @@ ON CONFLICT (pregunta) DO UPDATE SET
 
 Importante: para el bot usa la `service_role key`, no la `anon key`, porque el backend necesita insertar y actualizar registros.
 
+> **Nota:** La FK `fk_estado_usuario_phone` entre `estado_usuario` y `clientes` fue eliminada porque el bot crea el estado de conversacion antes de que el usuario complete su registro como cliente. Si la agregas de nuevo, el bot fallara con error 409 Conflict al recibir mensajes de usuarios no registrados.
+
 ## Variables de entorno
 
 Crea el archivo `bot-mensajeria/.env`. No subas este archivo a Git.
@@ -615,6 +605,15 @@ cd bot-mensajeria
 
 ## Ejecutar localmente
 
+### Opcion 1: Inicio rapido (recomendado)
+
+```bash
+iniciar.bat
+```
+Inicia ngrok (si no esta corriendo), arranca Flask, y abre el dashboard del dueno en el navegador.
+
+### Opcion 2: Manual
+
 ```bash
 cd bot-mensajeria
 python -m venv .venv
@@ -651,6 +650,7 @@ curriermsj/
 |-- README.md
 |-- registro.txt
 |-- .gitignore
+|-- iniciar.bat
 |-- bot-mensajeria/
 |   |-- README.md
 |   |-- app.py
@@ -676,7 +676,9 @@ curriermsj/
 |       `-- test_messages.py
 `-- dashboard/
     |-- README.md
-    |-- index.html
+    |-- index.html          (legacy - version React)
+    |-- owner.html          (dashboard del dueno)
+    |-- support.html        (dashboard de soporte)
     |-- package.json
     |-- vite.config.js
     |-- .env.example
@@ -706,3 +708,6 @@ curriermsj/
 | 3 | Panel administrativo para agentes (React + Chakra UI) | ✅ Completado |
 | 4 | Eliminar Telegram legacy (codigo eliminado, documentacion conservada) | ✅ Completado |
 | 5 | Despliegue estable sin ngrok | ⏳ Pendiente |
+| 6 | Fix FK estado_usuario → clientes (409 Conflict) | ✅ Completado |
+| 7 | Dos dashboards: Dueno + Soporte | ✅ Completado |
+| 8 | Script iniciar.bat para arranque rapido | ✅ Completado |

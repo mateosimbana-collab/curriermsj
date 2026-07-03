@@ -118,15 +118,24 @@ class MessageTemplates:
         )
 
     @staticmethod
+    def ask_welcome_apellido() -> str:
+        return "Gracias. Ahora dime tu apellido:"
+
+    @staticmethod
+    def ask_welcome_ciudad() -> str:
+        return "Perfecto. De que ciudad eres?"
+
+    @staticmethod
     def ask_welcome_phone() -> str:
         return "Perfecto. Ahora dime tu numero de telefono de contacto:"
 
     @staticmethod
-    def welcome_complete(name: str) -> str:
+    def welcome_complete(name: str, apellido: str = "") -> str:
+        full = f"{name} {apellido}".strip()
         return (
             "*REGISTRO COMPLETADO*\n"
             f"{LINE}\n"
-            f"Gracias *{name}*. Ya estas registrado.\n\n"
+            f"Gracias *{full}*. Ya estas registrado.\n\n"
             "Ahora puedes rastrear paquetes, consultar envios, reportar problemas o hablar con un agente."
         )
 

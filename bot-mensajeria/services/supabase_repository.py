@@ -1,8 +1,9 @@
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 from urllib.parse import quote
+from zoneinfo import ZoneInfo
 
 import httpx
 
@@ -11,6 +12,11 @@ from domain.constants import Step
 
 
 logger = logging.getLogger(__name__)
+
+try:
+    BUSINESS_TZ = ZoneInfo("America/Guayaquil")
+except Exception:
+    BUSINESS_TZ = timezone.utc
 
 
 class SupabaseRepository:
@@ -64,14 +70,25 @@ class SupabaseRepository:
         step: str = Step.MENU,
         data: Optional[dict[str, Any]] = None,
     ) -> dict[str, Any]:
+        existing = self.get_user_state(phone_number)
+        if existing:
+            self.update_user_state(phone_number, step, data)
+            return existing
         payload = {
             "phone_number": phone_number,
             "paso_actual": step,
             "datos_temp": data or {},
             "updated_at": datetime.utcnow().isoformat(),
         }
-        response = self._request("POST", self._table(self.table_estado), json=payload)
-        return response[0] if response else {}
+        try:
+            response = self._request("POST", self._table(self.table_estado), json=payload)
+            return response[0] if response else {}
+        except httpx.HTTPStatusError as exc:
+            if exc.response.status_code == 409:
+                self.update_user_state(phone_number, step, data)
+                updated = self.get_user_state(phone_number)
+                return updated if updated else {}
+            raise
 
     def update_user_state(
         self,
@@ -188,19 +205,23 @@ class SupabaseRepository:
         return None
 
     def get_dashboard_stats(self) -> dict[str, Any]:
-        now = datetime.utcnow()
-        today_iso = now.strftime("%Y-%m-%dT%H:%M:%S")
+        now_local = datetime.now(BUSINESS_TZ)
+        today_start_local = now_local.replace(hour=0, minute=0, second=0, microsecond=0)
+        today_start_utc = today_start_local.astimezone(timezone.utc).isoformat()
+        active_since_utc = (now_local - timedelta(hours=24)).astimezone(timezone.utc).isoformat()
+        chart_start_local = today_start_local - timedelta(days=13)
+        chart_start_utc = chart_start_local.astimezone(timezone.utc).isoformat()
 
         total_shipments = len(self._request("GET", f"{self._table(self.table_envios)}?select=id"))
         shipments_today = len(self._request(
             "GET",
             f"{self._table(self.table_envios)}?select=id"
-            f"&creado_en=gte.{quote(today_iso)}&order=creado_en.desc&limit=500",
+            f"&creado_en=gte.{quote(today_start_utc)}&order=creado_en.desc&limit=500",
         ))
         active_users = len(self._request(
             "GET",
             f"{self._table(self.table_estado)}?select=phone_number"
-            f"&updated_at=gte.{quote(today_iso)}",
+            f"&updated_at=gte.{quote(active_since_utc)}",
         ))
 
         total_reports = len(self._request("GET", f"{self._table(self.table_reportes)}?select=id"))
@@ -222,6 +243,13 @@ class SupabaseRepository:
             f"&order=updated_at.desc&limit=15",
         )
 
+        chart_rows = self._request(
+            "GET",
+            f"{self._table(self.table_envios)}?select=creado_en"
+            f"&creado_en=gte.{quote(chart_start_utc)}&order=creado_en.asc&limit=1000",
+        )
+        shipments_by_day = self._build_daily_counts(chart_start_local, 14, chart_rows)
+
         return {
             "total_shipments": total_shipments,
             "shipments_today": shipments_today,
@@ -230,7 +258,43 @@ class SupabaseRepository:
             "open_reports": open_reports,
             "recent_shipments": recent,
             "active_sessions": state_users,
+            "shipments_by_day": shipments_by_day,
         }
+
+    def _build_daily_counts(
+        self,
+        start_local: datetime,
+        days: int,
+        rows: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
+        counts: dict[str, int] = {}
+        for offset in range(days):
+            key = (start_local + timedelta(days=offset)).date().isoformat()
+            counts[key] = 0
+
+        for row in rows:
+            created = self._parse_datetime(row.get("creado_en"))
+            if not created:
+                continue
+            key = created.astimezone(BUSINESS_TZ).date().isoformat()
+            if key in counts:
+                counts[key] += 1
+
+        return [{"date": key, "count": value} for key, value in counts.items()]
+
+    @staticmethod
+    def _parse_datetime(value: Any) -> Optional[datetime]:
+        if not value:
+            return None
+        try:
+            text = str(value).replace("Z", "+00:00")
+            parsed = datetime.fromisoformat(text)
+            if parsed.tzinfo is None:
+                return parsed.replace(tzinfo=timezone.utc)
+            return parsed
+        except ValueError:
+            logger.warning("Fecha invalida recibida desde Supabase: %s", value)
+            return None
 
     def extract_temp_data(self, state: Optional[dict[str, Any]]) -> dict[str, Any]:
         if not state or not state.get("datos_temp"):
@@ -250,12 +314,16 @@ class SupabaseRepository:
     def _table(self, table_name: str) -> str:
         return f"{self.supabase_url}/rest/v1/{table_name}"
 
-    def _request(self, method: str, url: str, **kwargs: Any) -> Any:
+    def _request(self, method: str, url: str, headers: Optional[dict[str, str]] = None, **kwargs: Any) -> Any:
         if not self.supabase_url or not self.supabase_key:
             raise RuntimeError("Supabase no configurado: faltan SUPABASE_URL o SUPABASE_KEY")
 
+        request_headers = self.headers
+        if headers:
+            request_headers = {**self.headers, **headers}
+
         with httpx.Client(timeout=10) as client:
-            response = client.request(method, url, headers=self.headers, **kwargs)
+            response = client.request(method, url, headers=request_headers, **kwargs)
             response.raise_for_status()
             if not response.content:
                 return []

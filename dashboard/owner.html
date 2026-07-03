@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CurrierMsj — Dueño</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://unpkg.com/lucide@latest"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>tailwind.config={theme:{extend:{colors:{light:{bg:'#f1f5f9',card:'#ffffff',border:'#e2e8f0',accent:'#3b82f6'}}}}}</script>
+<style>@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');*{font-family:'Inter',sans-serif}body{background:#f8fafc;color:#1e293b}.card{background:#ffffff;border:1px solid #e2e8f0;border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,.04)}.kpi-value{font-size:1.8rem;font-weight:700;line-height:1.1;color:#0f172a}.kpi-label{font-size:.7rem;color:#64748b;text-transform:uppercase;letter-spacing:.05em;font-weight:600}.status-dot{width:8px;height:8px;border-radius:50%;display:inline-block}.progress-bar{height:6px;border-radius:3px;background:#e2e8f0;overflow:hidden}.progress-fill{height:100%;border-radius:3px;transition:width .4s ease}.table-row:hover{background:rgba(59,130,246,.03)}.sidebar-link.active{background:rgba(59,130,246,.08);color:#2563eb;border-left:3px solid #3b82f6;font-weight:600}.sidebar-link{border-left:3px solid transparent;transition:all .2s;color:#475569}.sidebar-link:hover{background:rgba(59,130,246,.04);color:#1e40af}.sidebar{background:#ffffff;border-right:1px solid #e2e8f0}::-webkit-scrollbar{width:6px}::-webkit-scrollbar-track{background:#f1f5f9}::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:3px}.fade-in{animation:fadeIn .3s ease-out}@keyframes fadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}</style>
+</head>
+<body class="min-h-screen flex">
+<aside class="sidebar w-64 flex-shrink-0 h-screen sticky top-0 flex flex-col">
+<div class="p-5 border-b border-slate-200"><div class="flex items-center gap-3">
+<div class="w-9 h-9 rounded-lg bg-gradient-to-br from-blue-600 to-blue-400 flex items-center justify-center shadow-sm"><i data-lucide="zap" class="w-5 h-5 text-white"></i></div>
+<div><h1 class="text-slate-900 font-semibold text-sm">CurrierMsj</h1><p class="text-[10px] text-slate-400 tracking-wide">PANEL DEL DUEÑO</p></div></div></div>
+<nav class="flex-1 p-3 space-y-1">
+<p class="px-3 py-2 text-[10px] font-semibold text-slate-400 uppercase tracking-widest">Negocio</p>
+<a href="javascript:void(0)" data-tab="dashboard" class="sidebar-link active flex items-center gap-3 px-3 py-2.5 rounded-md text-sm"><i data-lucide="layout-dashboard" class="w-4 h-4"></i><span>Panel Principal</span></a>
+<a href="javascript:void(0)" data-tab="ganancias" class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-md text-sm"><i data-lucide="circle-dollar-sign" class="w-4 h-4"></i><span>Finanzas</span></a>
+<p class="px-3 py-2 text-[10px] font-semibold text-slate-400 uppercase tracking-widest mt-2">Operación</p>
+<a href="javascript:void(0)" data-tab="envios" class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-md text-sm"><i data-lucide="package" class="w-4 h-4"></i><span>Envíos</span></a>
+<a href="javascript:void(0)" data-tab="clientes" class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-md text-sm"><i data-lucide="users" class="w-4 h-4"></i><span>Clientes</span></a>
+<a href="javascript:void(0)" data-tab="sesiones" class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-md text-sm"><i data-lucide="message-circle" class="w-4 h-4"></i><span>Sesiones</span></a>
+<a href="javascript:void(0)" data-tab="reportes" class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-md text-sm"><i data-lucide="file-text" class="w-4 h-4"></i><span>Reportes</span></a>
+</nav>
+<div class="p-4 border-t border-slate-200"><div class="flex items-center gap-2 text-xs text-slate-500"><a href="/dashboard/soporte" class="underline hover:text-blue-600">Ir a Soporte Técnico →</a></div></div>
+</aside>
+
+<main class="flex-1 p-6">
+
+<!-- ========== TAB: DASHBOARD ========== -->
+<div id="tab-dashboard" class="tab-content space-y-6">
+<header class="flex items-center justify-between"><div><h2 class="text-xl font-semibold text-slate-900">Panel Principal</h2><p class="text-sm text-slate-500 mt-0.5">Resumen del negocio</p></div>
+<div class="flex items-center gap-3"><span class="flex items-center gap-1.5 text-xs bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded-full border border-emerald-200 animate-pulse"><span class="w-1.5 h-1.5 bg-emerald-500 rounded-full"></span>EN VIVO</span><span class="text-xs text-slate-400">Actualizado: <span id="liveTime" class="text-slate-600">--</span></span></div></header>
+
+<section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+<div class="card p-5 relative overflow-hidden"><div class="absolute top-0 right-0 w-24 h-24 bg-blue-50 rounded-bl-full"></div>
+<div class="flex items-start justify-between mb-3"><span class="kpi-label">Envíos Totales</span><div class="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center"><i data-lucide="package" class="w-4 h-4 text-blue-500"></i></div></div>
+<p class="kpi-value" id="kpiTotalShipments">--</p><p class="text-xs text-slate-500 mt-1.5" id="kpiTodayShipments">--</p></div>
+<div class="card p-5 relative overflow-hidden"><div class="absolute top-0 right-0 w-24 h-24 bg-emerald-50 rounded-bl-full"></div>
+<div class="flex items-start justify-between mb-3"><span class="kpi-label">Ganancia Total</span><div class="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center"><i data-lucide="dollar-sign" class="w-4 h-4 text-emerald-500"></i></div></div>
+<p class="kpi-value text-emerald-600" id="kpiTotalEarnings">$0</p><p class="text-xs text-slate-500 mt-1.5" id="kpiTodayEarnings">--</p></div>
+<div class="card p-5 relative overflow-hidden"><div class="absolute top-0 right-0 w-24 h-24 bg-violet-50 rounded-bl-full"></div>
+<div class="flex items-start justify-between mb-3"><span class="kpi-label">Este Mes</span><div class="w-8 h-8 rounded-lg bg-violet-50 flex items-center justify-center"><i data-lucide="calendar" class="w-4 h-4 text-violet-500"></i></div></div>
+<p class="kpi-value text-violet-600" id="kpiMonthEarnings">$0</p><p class="text-xs text-slate-500 mt-1.5" id="kpiWeekEarnings">--</p></div>
+</section>
+
+<section class="card p-5"><div class="flex items-center justify-between mb-4"><h3 class="text-sm font-semibold text-slate-900">Envíos por Día</h3><span class="text-[10px] text-slate-400 bg-slate-100 px-2 py-0.5 rounded">Últimos 14 días</span></div><div class="relative h-64"><canvas id="shipmentsChart"></canvas></div></section>
+
+<section class="card p-5"><div class="flex items-center justify-between mb-4"><h3 class="text-sm font-semibold text-slate-900">Envíos Recientes</h3><span class="text-[10px] text-slate-400">en vivo</span></div>
+<div class="overflow-x-auto"><table class="w-full text-xs"><thead><tr class="text-slate-400 border-b border-slate-200">
+<th class="text-left py-2.5 px-3 font-medium">Código</th><th class="text-left py-2.5 px-3 font-medium">Cliente</th><th class="text-left py-2.5 px-3 font-medium">Destinatario</th><th class="text-left py-2.5 px-3 font-medium">Destino</th><th class="text-left py-2.5 px-3 font-medium">Servicio</th><th class="text-left py-2.5 px-3 font-medium">Estado</th><th class="text-left py-2.5 px-3 font-medium">Valor</th><th class="text-left py-2.5 px-3 font-medium">Teléfono</th>
+</tr></thead><tbody id="eventsTableBody"></tbody></table></div>
+<p class="text-center text-xs text-slate-400 mt-3 hidden" id="noEvents">Sin envíos registrados.</p></section>
+</div>
+
+<!-- ========== TAB: GANANCIAS ========== -->
+<div id="tab-ganancias" class="tab-content hidden space-y-6">
+<header class="flex items-center justify-between"><div><h2 class="text-xl font-semibold text-slate-900">Finanzas</h2><p class="text-sm text-slate-500 mt-0.5">Flujo de caja, utilidad, gastos, planilla y punto de equilibrio</p></div></header>
+<section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+<div class="card p-5 bg-gradient-to-br from-emerald-50 to-white border-emerald-200"><span class="kpi-label text-emerald-600">Total</span><p class="kpi-value text-emerald-700" id="earnTotal">$0</p></div>
+<div class="card p-5 bg-gradient-to-br from-blue-50 to-white border-blue-200"><span class="kpi-label text-blue-600">Hoy</span><p class="kpi-value text-blue-700" id="earnToday">$0</p><p class="text-xs text-slate-500 mt-1.5">ingresos de hoy</p></div>
+<div class="card p-5 bg-gradient-to-br from-violet-50 to-white border-violet-200"><span class="kpi-label text-violet-600">Esta Semana</span><p class="kpi-value text-violet-700" id="earnWeek">$0</p><p class="text-xs text-slate-500 mt-1.5">últimos 7 días</p></div>
+<div class="card p-5 bg-gradient-to-br from-amber-50 to-white border-amber-200"><span class="kpi-label text-amber-600">Este Mes</span><p class="kpi-value text-amber-700" id="earnMonth">$0</p><p class="text-xs text-slate-500 mt-1.5">ingresos del mes</p></div>
+</section>
+<section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+<div class="card p-5"><span class="kpi-label">Egresos del Mes</span><p class="kpi-value text-red-600" id="financeExpenses">$0</p><p class="text-xs text-slate-500 mt-1.5" id="financeExpenseMix">fijos / variables</p></div>
+<div class="card p-5"><span class="kpi-label">Ganancia Neta</span><p class="kpi-value text-emerald-600" id="financeNet">$0</p><p class="text-xs text-slate-500 mt-1.5">ingresos - costos - gastos</p></div>
+<div class="card p-5"><span class="kpi-label">Margen</span><p class="kpi-value text-blue-600" id="financeMargin">0%</p><p class="text-xs text-slate-500 mt-1.5">utilidad real del mes</p></div>
+<div class="card p-5"><span class="kpi-label">Punto de Equilibrio</span><p class="kpi-value text-violet-600" id="financeBreakEven">$0</p><p class="text-xs text-slate-500 mt-1.5">ventas mensuales necesarias</p></div>
+</section>
+<section class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+<div class="card p-5"><div class="flex items-center justify-between mb-4"><h3 class="text-sm font-semibold text-slate-900">Flujo de Caja Diario</h3><span class="text-[10px] text-slate-400 bg-slate-100 px-2 py-0.5 rounded">14 dias</span></div><div class="relative h-64"><canvas id="cashflowChart"></canvas></div></div>
+<div class="card p-5"><div class="flex items-center justify-between mb-4"><h3 class="text-sm font-semibold text-slate-900">Ganancias por Mes</h3></div><div class="relative h-64"><canvas id="earningsChart"></canvas></div></div>
+</section>
+<section class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+<div class="card p-5"><h3 class="text-sm font-semibold text-slate-900 mb-4">Clasificación de Gastos</h3><div class="overflow-x-auto"><table class="w-full text-xs"><thead><tr class="text-slate-400 border-b border-slate-200"><th class="text-left py-2 px-3 font-medium">Categoría</th><th class="text-left py-2 px-3 font-medium">Tipo</th><th class="text-left py-2 px-3 font-medium">Monto</th><th class="text-left py-2 px-3 font-medium">Fecha</th></tr></thead><tbody id="financeExpensesBody"></tbody></table></div></div>
+<div class="card p-5"><h3 class="text-sm font-semibold text-slate-900 mb-4">Control de Planilla</h3><div class="overflow-x-auto"><table class="w-full text-xs"><thead><tr class="text-slate-400 border-b border-slate-200"><th class="text-left py-2 px-3 font-medium">Persona</th><th class="text-left py-2 px-3 font-medium">Neto</th><th class="text-left py-2 px-3 font-medium">Pago</th><th class="text-left py-2 px-3 font-medium">Estado</th></tr></thead><tbody id="financePayrollBody"></tbody></table></div></div>
+</section>
+<section class="card p-5"><h3 class="text-sm font-semibold text-slate-900 mb-4">Margen por Producto y Categoría</h3><div class="overflow-x-auto"><table class="w-full text-xs"><thead><tr class="text-slate-400 border-b border-slate-200"><th class="text-left py-2 px-3 font-medium">Producto / Categoría</th><th class="text-left py-2 px-3 font-medium">Ingresos</th><th class="text-left py-2 px-3 font-medium">Costo</th><th class="text-left py-2 px-3 font-medium">Margen</th></tr></thead><tbody id="financeMarginsBody"></tbody></table></div></section>
+</div>
+
+<!-- ========== TAB: ENVIOS ========== -->
+<div id="tab-envios" class="tab-content hidden space-y-6">
+<header class="flex items-center justify-between"><div><h2 class="text-xl font-semibold text-slate-900">Envíos</h2><p class="text-sm text-slate-500 mt-0.5">Todos los envíos registrados</p></div></header>
+<section class="card p-5"><div class="overflow-x-auto"><table class="w-full text-xs"><thead><tr class="text-slate-400 border-b border-slate-200">
+<th class="text-left py-2.5 px-3 font-medium">Tracking</th><th class="text-left py-2.5 px-3 font-medium">Remitente</th><th class="text-left py-2.5 px-3 font-medium">Destinatario</th><th class="text-left py-2.5 px-3 font-medium">Destino</th><th class="text-left py-2.5 px-3 font-medium">Tipo</th><th class="text-left py-2.5 px-3 font-medium">Servicio</th><th class="text-left py-2.5 px-3 font-medium">Estado</th><th class="text-left py-2.5 px-3 font-medium">Valor</th><th class="text-left py-2.5 px-3 font-medium">Fecha</th>
+</tr></thead><tbody id="ownerEnviosBody"></tbody></table></div><p class="text-center text-xs text-slate-400 mt-3 hidden" id="noOwnerEnvios">Sin envíos registrados.</p></section>
+</div>
+
+<!-- ========== TAB: CLIENTES ========== -->
+<div id="tab-clientes" class="tab-content hidden space-y-6">
+<header><h2 class="text-xl font-semibold text-slate-900">Clientes</h2><p class="text-sm text-slate-500 mt-0.5">Registrados en el sistema</p></header>
+<section class="card p-5"><div class="overflow-x-auto"><table class="w-full text-xs"><thead><tr class="text-slate-400 border-b border-slate-200">
+<th class="text-left py-2.5 px-3 font-medium">Teléfono</th><th class="text-left py-2.5 px-3 font-medium">Nombre</th><th class="text-left py-2.5 px-3 font-medium">Ciudad</th><th class="text-left py-2.5 px-3 font-medium">Contacto</th><th class="text-left py-2.5 px-3 font-medium">Registrado</th>
+</tr></thead><tbody id="ownerClientesBody"></tbody></table></div><p class="text-center text-xs text-slate-400 mt-3 hidden" id="noOwnerClientes">Sin clientes registrados.</p></section>
+</div>
+
+<!-- ========== TAB: SESIONES ========== -->
+<div id="tab-sesiones" class="tab-content hidden space-y-6">
+<header><h2 class="text-xl font-semibold text-slate-900">Sesiones</h2><p class="text-sm text-slate-500 mt-0.5">Usuarios activos en el chatbot</p></header>
+<section class="card p-5"><div class="overflow-x-auto"><table class="w-full text-xs"><thead><tr class="text-slate-400 border-b border-slate-200">
+<th class="text-left py-2.5 px-3 font-medium">Teléfono</th><th class="text-left py-2.5 px-3 font-medium">Paso</th><th class="text-left py-2.5 px-3 font-medium">Última Actividad</th>
+</tr></thead><tbody id="ownerSessionsBody"></tbody></table></div><p class="text-center text-xs text-slate-400 mt-3 hidden" id="noOwnerSessions">Sin sesiones activas.</p></section>
+</div>
+
+<!-- ========== TAB: REPORTES ========== -->
+<div id="tab-reportes" class="tab-content hidden space-y-6">
+<header class="flex items-center justify-between"><div><h2 class="text-xl font-semibold text-slate-900">Reportes</h2><p class="text-sm text-slate-500 mt-0.5">Incidencias reportadas</p></div><span class="text-xs text-slate-400" id="ownerReportCount">--</span></header>
+<section class="card p-5"><div class="space-y-3" id="ownerReportsList"><p class="text-xs text-slate-400">No hay reportes.</p></div></section>
+</div>
+
+</main>
+
+<script>
+lucide.createIcons(); let chartsBuilt = false;
+function updateClock(){document.getElementById('liveTime').textContent=new Date().toLocaleTimeString('es-EC',{hour:'2-digit',minute:'2-digit',second:'2-digit'});}
+updateClock();setInterval(updateClock,1000);
+document.querySelectorAll('[data-tab]').forEach(l=>l.addEventListener('click',function(){document.querySelectorAll('[data-tab]').forEach(x=>x.classList.remove('active'));this.classList.add('active');document.querySelectorAll('.tab-content').forEach(t=>t.classList.add('hidden'));const tab=document.getElementById('tab-'+this.dataset.tab);if(tab)tab.classList.remove('hidden');}));
+
+async function fetchData() {
+try {
+const [dResp, eResp, fResp] = await Promise.all([fetch('/api/dashboard'), fetch('/api/earnings'), fetch('/api/finance-summary')]);
+const d = await dResp.json(); const e = await eResp.json(); const f = await fResp.json();
+renderMain(d,e,f); if(!chartsBuilt){chartsBuilt=true;buildCharts(d,e,f);}
+} catch(err){console.error(err);}
+}
+function renderMain(d,e,f) {
+document.getElementById('kpiTotalShipments').textContent = d.total_shipments??0;
+document.getElementById('kpiTodayShipments').textContent = (d.shipments_today??0)+' hoy';
+document.getElementById('kpiTotalEarnings').textContent = '$'+(e.total??0).toLocaleString('en-US',{minimumFractionDigits:2});
+document.getElementById('kpiTodayEarnings').textContent = '$'+(e.today??0).toLocaleString('en-US',{minimumFractionDigits:2})+' hoy';
+document.getElementById('kpiMonthEarnings').textContent = '$'+(e.month??0).toLocaleString('en-US',{minimumFractionDigits:2});
+document.getElementById('kpiWeekEarnings').textContent = '$'+(e.week??0).toLocaleString('en-US',{minimumFractionDigits:2})+' esta semana';
+document.getElementById('earnTotal').textContent = '$'+(e.total??0).toLocaleString('en-US',{minimumFractionDigits:2});
+document.getElementById('earnToday').textContent = '$'+(e.today??0).toLocaleString('en-US',{minimumFractionDigits:2});
+document.getElementById('earnWeek').textContent = '$'+(e.week??0).toLocaleString('en-US',{minimumFractionDigits:2});
+document.getElementById('earnMonth').textContent = '$'+(e.month??0).toLocaleString('en-US',{minimumFractionDigits:2});
+renderFinance(f||{});
+
+const tbody = document.getElementById('eventsTableBody'); tbody.innerHTML = '';
+const rows = (d.recent_shipments||[]).slice(0,12).map(s => {
+const code = s.tracking_code||'CUR-'+String(s.id).padStart(5,'0');
+const est = s.estado||'pendiente';
+const ec = est==='pendiente'?'text-amber-700 bg-amber-50 border border-amber-200':est==='entregado'?'text-emerald-700 bg-emerald-50 border border-emerald-200':'text-blue-700 bg-blue-50 border border-blue-200';
+return '<tr class="table-row border-b border-slate-100">'
++'<td class="py-2.5 px-3 text-slate-700 font-mono text-[11px] font-medium">'+code+'</td>'
++'<td class="py-2.5 px-3 text-slate-600">'+(s.remitente||'--')+'</td>'
++'<td class="py-2.5 px-3 text-slate-600">'+(s.destinatario||'--')+'</td>'
++'<td class="py-2.5 px-3 text-slate-500 max-w-[120px] truncate">'+(s.direccion_destino||'--')+'</td>'
++'<td class="py-2.5 px-3 text-slate-600">'+(s.servicio_envio||'--')+'</td>'
++'<td class="py-2.5 px-3"><span class="px-2 py-0.5 rounded text-[10px] font-semibold '+ec+'">'+est+'</span></td>'
++'<td class="py-2.5 px-3 text-slate-600 font-mono">'+(s.valor_cotizado?'$'+parseFloat(s.valor_cotizado).toFixed(2):'--')+'</td>'
++'<td class="py-2.5 px-3 text-slate-400 text-[10px] font-mono">'+(s.phone_number||'--')+'</td></tr>';
+});
+if(rows.length){tbody.innerHTML=rows.join('');document.getElementById('noEvents').classList.add('hidden');}
+else{document.getElementById('noEvents').classList.remove('hidden');}
+}
+
+function renderFinance(f) {
+const fmt = v => '$'+Number(v||0).toLocaleString('en-US',{minimumFractionDigits:2});
+document.getElementById('financeExpenses').textContent = fmt(f.expenses_month);
+document.getElementById('financeExpenseMix').textContent = fmt(f.fixed_expenses)+' fijos / '+fmt(f.variable_expenses)+' variables';
+document.getElementById('financeNet').textContent = fmt(f.net_profit_month);
+document.getElementById('financeMargin').textContent = Number(f.margin_month||0).toFixed(1)+'%';
+document.getElementById('financeBreakEven').textContent = fmt(f.break_even_month);
+
+const expenses = f.expense_rows||[];
+document.getElementById('financeExpensesBody').innerHTML = expenses.length ? expenses.map(r =>
+'<tr class="table-row border-b border-slate-100"><td class="py-2 px-3 text-slate-700">'+(r.categoria||'--')+'</td>'
++'<td class="py-2 px-3"><span class="px-2 py-0.5 rounded text-[10px] '+((r.tipo_gasto||'variable')==='fijo'?'text-blue-700 bg-blue-50':'text-amber-700 bg-amber-50')+'">'+(r.tipo_gasto||'variable')+'</span></td>'
++'<td class="py-2 px-3 text-slate-600 font-mono">'+fmt(r.monto)+'</td>'
++'<td class="py-2 px-3 text-slate-400 text-[10px]">'+(r.fecha||'--')+'</td></tr>'
+).join('') : '<tr><td colspan="4" class="text-center text-slate-400 py-4">Sin egresos registrados.</td></tr>';
+
+const payroll = f.payroll_rows||[];
+document.getElementById('financePayrollBody').innerHTML = payroll.length ? payroll.map(r =>
+'<tr class="table-row border-b border-slate-100"><td class="py-2 px-3 text-slate-700">'+(r.nombre||'--')+'<p class="text-[10px] text-slate-400">'+(r.cargo||'')+'</p></td>'
++'<td class="py-2 px-3 text-slate-600 font-mono">'+fmt(r.neto)+'</td>'
++'<td class="py-2 px-3 text-slate-400 text-[10px]">'+(r.fecha_pago||'--')+'</td>'
++'<td class="py-2 px-3"><span class="px-2 py-0.5 rounded text-[10px] '+((r.estado_pago||'pendiente')==='pagado'?'text-emerald-700 bg-emerald-50':'text-amber-700 bg-amber-50')+'">'+(r.estado_pago||'pendiente')+'</span></td></tr>'
+).join('') : '<tr><td colspan="4" class="text-center text-slate-400 py-4">Sin planilla registrada.</td></tr>';
+
+const margins = [...(f.product_margins||[]), ...(f.category_margins||[]).map(r => ({producto:r.categoria,categoria:'Categoria',ingresos:r.ingresos,costo:r.costo,margen:r.margen}))];
+document.getElementById('financeMarginsBody').innerHTML = margins.length ? margins.map(r =>
+'<tr class="table-row border-b border-slate-100"><td class="py-2 px-3 text-slate-700">'+(r.producto||r.categoria||'--')+'<p class="text-[10px] text-slate-400">'+(r.categoria||'')+'</p></td>'
++'<td class="py-2 px-3 text-slate-600 font-mono">'+fmt(r.ingresos)+'</td>'
++'<td class="py-2 px-3 text-slate-600 font-mono">'+fmt(r.costo)+'</td>'
++'<td class="py-2 px-3 font-semibold '+(Number(r.margen||0)>=0?'text-emerald-600':'text-red-600')+'">'+Number(r.margen||0).toFixed(1)+'%</td></tr>'
+).join('') : '<tr><td colspan="4" class="text-center text-slate-400 py-4">Sin margenes registrados.</td></tr>';
+}
+
+function buildCharts(d,e,f) {
+const dailyRows = Array.isArray(d.shipments_by_day) ? d.shipments_by_day : [];
+const last14 = dailyRows.map(r => {
+const parts = String(r.date || '').split('-').map(Number);
+const date = parts.length === 3 ? new Date(parts[0], parts[1]-1, parts[2]) : new Date(r.date);
+return date.toLocaleDateString('es-EC',{day:'numeric',month:'short'});
+});
+const dailyData = dailyRows.map(r => Number(r.count || 0));
+new Chart(document.getElementById('shipmentsChart').getContext('2d'), {
+type:'bar',
+data:{labels:last14,datasets:[{data:dailyData,backgroundColor:'#3b82f6',borderRadius:6,barThickness:14}]},
+options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#64748b',maxTicksLimit:7,font:{size:10}},grid:{display:false},border:{display:false}},y:{beginAtZero:true,ticks:{precision:0,color:'#64748b',font:{size:10}},grid:{color:'rgba(203,213,225,0.6)'},border:{display:false}}}}
+});
+
+const cashRows = Array.isArray(f&&f.cashflow_by_day) ? f.cashflow_by_day : [];
+const cashLabels = cashRows.map(r => {
+const parts = String(r.date || '').split('-').map(Number);
+const date = parts.length === 3 ? new Date(parts[0], parts[1]-1, parts[2]) : new Date(r.date);
+return date.toLocaleDateString('es-EC',{day:'numeric',month:'short'});
+});
+new Chart(document.getElementById('cashflowChart').getContext('2d'), {
+type:'bar',
+data:{labels:cashLabels,datasets:[{label:'Ingresos',data:cashRows.map(r=>Number(r.ingresos||0)),backgroundColor:'#10b981',borderRadius:6,barThickness:12},{label:'Egresos',data:cashRows.map(r=>Number(r.egresos||0)),backgroundColor:'#ef4444',borderRadius:6,barThickness:12}]},
+options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{boxWidth:10,color:'#64748b',font:{size:10}}}},scales:{x:{ticks:{color:'#64748b',maxTicksLimit:7,font:{size:10}},grid:{display:false},border:{display:false}},y:{beginAtZero:true,ticks:{color:'#64748b',font:{size:10},callback:v=>'$'+v},grid:{color:'rgba(203,213,225,0.6)'},border:{display:false}}}}
+});
+
+// Earnings chart from by_month data
+const months = Object.keys(e.by_month||{}).sort();
+const monthLabels = months.map(m => {const p=m.split('-');const meses=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];return meses[parseInt(p[1])-1]+' '+p[0];});
+const monthData = months.map(m => e.by_month[m]);
+if(monthLabels.length){
+new Chart(document.getElementById('earningsChart').getContext('2d'), {
+type:'bar',
+data:{labels:monthLabels,datasets:[{data:monthData,backgroundColor:'#10b981',borderRadius:6,barThickness:30}]},
+options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#64748b',font:{size:10}},grid:{display:false},border:{display:false}},y:{ticks:{color:'#64748b',font:{size:10},callback:v=>'$'+v},grid:{color:'rgba(203,213,225,0.6)'},border:{display:false}}}}
+});
+} else {
+document.getElementById('earningsChart').parentElement.innerHTML = '<div class="flex items-center justify-center h-64 text-slate-400 text-sm">Sin datos de ganancias aún.</div>';
+}
+lucide.createIcons();
+}
+
+async function fetchFullData() {
+try {
+const [statsResp, enviosResp] = await Promise.all([fetch('/api/system-stats'), fetch('/api/envios')]);
+const stats = await statsResp.json(); const envios = await enviosResp.json();
+
+const ct = document.getElementById('ownerClientesBody');
+if(ct && stats.clientes){
+ct.innerHTML = stats.clientes.map(c =>
+'<tr class="table-row border-b border-slate-100"><td class="py-2.5 px-3 text-slate-700 font-mono text-[11px]">'+c.phone_number+'</td>'
++'<td class="py-2.5 px-3 text-slate-600">'+((c.nombre||'')+' '+(c.apellido||'')).trim()||'--'+'</td>'
++'<td class="py-2.5 px-3 text-slate-500">'+(c.ciudad||'--')+'</td>'
++'<td class="py-2.5 px-3 text-slate-500">'+(c.telefono_contacto||'--')+'</td>'
++'<td class="py-2.5 px-3 text-slate-400 text-[10px]">'+(c.registrado_en?new Date(c.registrado_en).toLocaleString('es-EC'):'--')+'</td></tr>'
+).join('');
+document.getElementById('noOwnerClientes')&&document.getElementById('noOwnerClientes').classList.toggle('hidden',stats.clientes.length>0);
+}
+const sb = document.getElementById('ownerSessionsBody');
+const sessions = stats.estados||[];
+if(sb){
+sb.innerHTML = sessions.length ? sessions.map(u =>
+'<tr class="table-row border-b border-slate-100"><td class="py-2.5 px-3 text-slate-700 font-mono text-[11px]">'+u.phone_number+'</td>'
++'<td class="py-2.5 px-3 text-slate-600">'+(u.paso_actual||'menu')+'</td>'
++'<td class="py-2.5 px-3 text-slate-500 text-[10px]">'+(u.updated_at?new Date(u.updated_at).toLocaleString('es-EC'):'--')+'</td></tr>'
+).join('') : '<tr><td colspan="3" class="text-center text-slate-400 py-4">Sin sesiones activas.</td></tr>';
+document.getElementById('noOwnerSessions')&&document.getElementById('noOwnerSessions').classList.toggle('hidden',sessions.length>0);
+}
+const et = document.getElementById('ownerEnviosBody');
+if(et && Array.isArray(envios)){
+et.innerHTML = envios.map(s =>
+'<tr class="table-row border-b border-slate-100"><td class="py-2.5 px-3 text-slate-700 font-mono text-[11px]">'+(s.tracking_code||'CUR-'+String(s.id).padStart(5,'0'))+'</td>'
++'<td class="py-2.5 px-3 text-slate-600">'+(s.remitente||'--')+'</td>'
++'<td class="py-2.5 px-3 text-slate-600">'+(s.destinatario||'--')+'</td>'
++'<td class="py-2.5 px-3 text-slate-500 max-w-[100px] truncate">'+(s.direccion_destino||'--')+'</td>'
++'<td class="py-2.5 px-3 text-slate-500">'+(s.tipo_paquete||'--')+'</td>'
++'<td class="py-2.5 px-3 text-slate-500">'+(s.servicio_envio||'--')+'</td>'
++'<td class="py-2.5 px-3"><span class="px-2 py-0.5 rounded text-[10px] '+(s.estado==='pendiente'?'text-amber-700 bg-amber-50 border border-amber-200':s.estado==='entregado'?'text-emerald-700 bg-emerald-50 border border-emerald-200':'text-blue-700 bg-blue-50 border border-blue-200')+'">'+(s.estado||'pendiente')+'</span></td>'
++'<td class="py-2.5 px-3 text-slate-600 font-mono">'+(s.valor_cotizado?'$'+parseFloat(s.valor_cotizado).toFixed(2):'--')+'</td>'
++'<td class="py-2.5 px-3 text-slate-400 text-[10px]">'+(s.creado_en?new Date(s.creado_en).toLocaleString('es-EC'):'--')+'</td></tr>'
+).join('');
+document.getElementById('noOwnerEnvios')&&document.getElementById('noOwnerEnvios').classList.toggle('hidden',envios.length>0);
+}
+const rl = document.getElementById('ownerReportsList');
+if(rl && stats.reportes){
+document.getElementById('ownerReportCount').textContent = stats.reportes.length+' totales';
+rl.innerHTML = stats.reportes.length ? stats.reportes.map(r =>
+'<div class="flex items-center justify-between p-3 rounded-lg bg-slate-50 border border-slate-200">'
++'<div><p class="text-xs font-medium text-slate-800">'+(r.phone_number||'--')+'</p><p class="text-[10px] text-slate-400">'+(r.descripcion||'').substring(0,80)+(r.descripcion&&r.descripcion.length>80?'...':'')+'</p></div>'
++'<div class="text-right"><span class="text-[10px] font-medium '+(r.estado==='abierto'?'text-amber-600':'text-emerald-600')+'">'+(r.estado||'abierto')+'</span><p class="text-[10px] text-slate-400 mt-0.5">'+(r.creado_en?new Date(r.creado_en).toLocaleString('es-EC'):'')+'</p></div></div>'
+).join('') : '<p class="text-xs text-slate-400">No hay reportes.</p>';
+}
+} catch(err){console.error(err);}
+}
+
+fetchData(); setInterval(fetchData, 30000);
+fetchFullData(); setInterval(fetchFullData, 30000);
+</script>
+</body>
+</html>
