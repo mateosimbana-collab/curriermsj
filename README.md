@@ -478,6 +478,8 @@ Donde conseguir cada valor:
 | `SUPABASE_URL` | `bot-mensajeria/.env` | Supabase -> Project Settings -> API -> Project URL |
 | `SUPABASE_KEY` | `bot-mensajeria/.env` | Supabase -> Project Settings -> API -> service_role key |
 | `TELEGRAM_BOT_TOKEN` | `bot-mensajeria/.env` | BotFather en Telegram, solo si vuelves a activar Telegram |
+| `cargar_datos_prueba.bat` | raiz | Lee SUPABASE_URL y SUPABASE_KEY de `.env` automaticamente |
+| `borrar_datos.bat` | raiz | Lee SUPABASE_URL y SUPABASE_KEY de `.env` automaticamente |
 
 ## Configurar Supabase API
 
@@ -605,6 +607,29 @@ cd bot-mensajeria
 
 ## Ejecutar localmente
 
+## Datos de prueba
+
+El proyecto incluye dos scripts para gestionar datos en Supabase:
+
+| Script | Accion |
+|---|---|
+| `cargar_datos_prueba.bat` | Inserta 5 clientes, 6 envios, 3 reportes, FAQ adicional, finanzas, planilla y margenes |
+| `borrar_datos.bat` | Elimina TODOS los registros de todas las tablas y restaura FAQ base |
+
+Ejecutar:
+
+```bash
+cargar_datos_prueba.bat
+```
+
+O:
+
+```bash
+borrar_datos.bat
+```
+
+Pide confirmacion antes de borrar.
+
 ### Opcion 1: Inicio rapido (recomendado)
 
 ```bash
@@ -651,6 +676,8 @@ curriermsj/
 |-- registro.txt
 |-- .gitignore
 |-- iniciar.bat
+|-- cargar_datos_prueba.bat
+|-- borrar_datos.bat
 |-- bot-mensajeria/
 |   |-- README.md
 |   |-- app.py
@@ -711,3 +738,5 @@ curriermsj/
 | 6 | Fix FK estado_usuario → clientes (409 Conflict) | ✅ Completado |
 | 7 | Dos dashboards: Dueno + Soporte | ✅ Completado |
 | 8 | Script iniciar.bat para arranque rapido | ✅ Completado |
+| 9 | Scripts cargar_datos_prueba.bat y borrar_datos.bat | ✅ Completado |
+| 10 | Dashboard Dueno sin estados de servicio (solo Soporte) | ✅ Completado |

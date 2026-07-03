@@ -163,14 +163,25 @@ curriermsj/
     supabase_schema.sql
 
 ================================================================================
-PENDIENTES (para la otra persona)
+PENDIENTES REALIZADOS (fase 2 - julio 2026)
 ================================================================================
-1. Ejecutar supabase_schema.sql en SQL Editor de Supabase
-2. Crear .env con valores reales (copiar de .env.example)
-3. Configurar WhatsApp Business API en Meta Developers
-4. Configurar webhook en Meta: URL de ngrok + /webhook
-5. Agregar datos de FAQ adicionales en tabla faq
-6. ROTAR credenciales expuestas en commits anteriores
-7. Resolver RLS en tabla envios (agregar policy para service_role)
-8. Reintegrar Google Sheets si se necesita
+- Separacion en capas: CourierBot, SupabaseRepository, WhatsAppClient, routes
+- Mensajes refactorizados a MessageTemplates + Buttons en messages.py
+- whatsapp_db.py eliminado, reemplazado por supabase_repository.py
+- Endpoints: /api/earnings, /api/logs, /api/system-stats, /api/envios, /api/finance-summary
+- Dashboards: owner.html (Duenno) + support.html (Soporte dark theme)
+- Fix: FK fk_estado_usuario_phone eliminada (causaba 409 Conflict)
+- Fix: ask_welcome_apellido(), ask_welcome_ciudad() agregados
+- Fix: welcome_complete() acepta name + apellido
+- iniciar.bat: arranque rapido ngrok + Flask + dashboard
+- cargar_datos_prueba.bat: inserta datos de prueba (clientes, envios, reportes, finanzas)
+- borrar_datos.bat: elimina todos los datos y restaura FAQ base
+
+PENDIENTES (reales)
+===============================================================================
+1. Agregar numeros de prueba a lista permitida en Meta Developers
+2. Despliegue estable sin ngrok
+3. Ajustar cotizaciones reales EE.UU. -> Ecuador
+4. Integrar OpenTelemetry o Sentry para observabilidad real
+5. Reintegrar Google Sheets si se necesita
 ================================================================================
