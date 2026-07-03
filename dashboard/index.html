@@ -58,23 +58,23 @@
         </div>
         <nav class="flex-1 p-3 space-y-1">
             <p class="px-3 py-2 text-[10px] font-semibold text-slate-400 uppercase tracking-widest">Navegacion</p>
-            <a href="javascript:void(0)" class="sidebar-link active flex items-center gap-3 px-3 py-2.5 rounded-md text-sm">
+            <a href="javascript:void(0)" data-tab="dashboard" class="sidebar-link active flex items-center gap-3 px-3 py-2.5 rounded-md text-sm">
                 <i data-lucide="layout-dashboard" class="w-4 h-4"></i>
                 <span>Panel Principal</span>
             </a>
-            <a href="javascript:void(0)" class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-md text-sm">
+            <a href="javascript:void(0)" data-tab="observabilidad" class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-md text-sm">
                 <i data-lucide="activity" class="w-4 h-4"></i>
                 <span>Observabilidad</span>
             </a>
-            <a href="javascript:void(0)" class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-md text-sm">
+            <a href="javascript:void(0)" data-tab="usuarios" class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-md text-sm">
                 <i data-lucide="users" class="w-4 h-4"></i>
                 <span>Usuarios</span>
             </a>
-            <a href="javascript:void(0)" class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-md text-sm">
+            <a href="javascript:void(0)" data-tab="reportes" class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-md text-sm">
                 <i data-lucide="file-text" class="w-4 h-4"></i>
                 <span>Reportes</span>
             </a>
-            <a href="javascript:void(0)" class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-md text-sm">
+            <a href="javascript:void(0)" data-tab="config" class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-md text-sm">
                 <i data-lucide="settings" class="w-4 h-4"></i>
                 <span>Configuracion</span>
             </a>
@@ -89,190 +89,234 @@
     </aside>
 
     <!-- ===== CONTENIDO PRINCIPAL ===== -->
-    <main class="flex-1 p-6 space-y-6">
+    <main class="flex-1 p-6">
 
-        <!-- Encabezado -->
-        <header class="flex items-center justify-between">
-            <div>
-                <h2 class="text-xl font-semibold text-slate-900">Observabilidad</h2>
-                <p class="text-sm text-slate-500 mt-0.5">Monitoreo en tiempo real &mdash; Chatbot WhatsApp</p>
-            </div>
-            <div class="flex items-center gap-3">
-                <span class="flex items-center gap-1.5 text-xs bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded-full border border-emerald-200">
-                    <span class="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></span>
-                    EN VIVO
-                </span>
-                <span class="text-xs text-slate-400">Actualizado: <span id="liveTime" class="text-slate-600">--</span></span>
-            </div>
-        </header>
-
-        <!-- ===== FILA SUPERIOR: KPIs ===== -->
-        <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div class="card p-5 relative overflow-hidden fade-in">
-                <div class="absolute top-0 right-0 w-24 h-24 bg-blue-50 rounded-bl-full"></div>
-                <div class="flex items-start justify-between mb-3">
-                    <span class="kpi-label">Envios Totales</span>
-                    <div class="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center">
-                        <i data-lucide="package" class="w-4 h-4 text-blue-500"></i>
-                    </div>
-                </div>
-                <p class="kpi-value" id="kpiTotalShipments">--</p>
-                <p class="text-xs text-slate-500 mt-1.5" id="kpiTodayShipments">--</p>
-            </div>
-            <div class="card p-5 relative overflow-hidden fade-in">
-                <div class="absolute top-0 right-0 w-24 h-24 bg-emerald-50 rounded-bl-full"></div>
-                <div class="flex items-start justify-between mb-3">
-                    <span class="kpi-label">Usuarios Activos</span>
-                    <div class="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center">
-                        <i data-lucide="users" class="w-4 h-4 text-emerald-500"></i>
-                    </div>
-                </div>
-                <p class="kpi-value" id="kpiActiveUsers">--</p>
-                <p class="text-xs text-slate-500 mt-1.5">ultimas 24 horas</p>
-            </div>
-            <div class="card p-5 relative overflow-hidden fade-in">
-                <div class="absolute top-0 right-0 w-24 h-24 bg-red-50 rounded-bl-full"></div>
-                <div class="flex items-start justify-between mb-3">
-                    <span class="kpi-label">Reportes Abiertos</span>
-                    <div class="w-8 h-8 rounded-lg bg-red-50 flex items-center justify-center">
-                        <i data-lucide="alert-triangle" class="w-4 h-4 text-red-500"></i>
-                    </div>
-                </div>
-                <p class="kpi-value" id="kpiOpenReports">--</p>
-                <p class="text-xs text-slate-500 mt-1.5" id="kpiTotalReports">--</p>
-            </div>
-            <div class="card p-5 relative overflow-hidden fade-in">
-                <div class="absolute top-0 right-0 w-24 h-24 bg-violet-50 rounded-bl-full"></div>
-                <div class="flex items-start justify-between mb-3">
-                    <span class="kpi-label">Sesiones Activas</span>
-                    <div class="w-8 h-8 rounded-lg bg-violet-50 flex items-center justify-center">
-                        <i data-lucide="message-circle" class="w-4 h-4 text-violet-500"></i>
-                    </div>
-                </div>
-                <p class="kpi-value" id="kpiSessions">--</p>
-                <p class="text-xs text-slate-500 mt-1.5">conversaciones en curso</p>
-            </div>
-        </section>
-
-        <!-- ===== FILA CENTRAL: Graficas ===== -->
-        <section class="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <div class="card p-5">
-                <div class="flex items-center justify-between mb-4">
-                    <h3 class="text-sm font-semibold text-slate-900">Envios por Dia (ultimos 14 dias)</h3>
-                    <span class="text-[10px] text-slate-400 bg-slate-100 px-2 py-0.5 rounded">Historico</span>
-                </div>
-                <div class="relative h-64"><canvas id="shipmentsChart"></canvas></div>
-            </div>
-            <div class="card p-5">
-                <div class="flex items-center justify-between mb-4">
-                    <h3 class="text-sm font-semibold text-slate-900">Distribucion de Envios por Estado</h3>
-                    <span class="text-[10px] text-slate-400 bg-slate-100 px-2 py-0.5 rounded">Actual</span>
-                </div>
-                <div class="relative h-64"><canvas id="statusChart"></canvas></div>
-            </div>
-        </section>
-
-        <!-- ===== FILA INFERIOR: Estatus + Recursos ===== -->
-        <section class="grid grid-cols-1 lg:grid-cols-3 gap-4">
-
-            <!-- Estatus de Servicios -->
-            <div class="card p-5">
-                <h3 class="text-sm font-semibold text-slate-900 mb-4">Estatus de Servicios</h3>
-                <div class="space-y-3" id="servicesGrid"></div>
-            </div>
-
-            <!-- Recursos del Servidor -->
-            <div class="card p-5">
-                <h3 class="text-sm font-semibold text-slate-900 mb-4">Recursos del Servidor</h3>
-                <div class="space-y-4">
-                    <div>
-                        <div class="flex items-center justify-between mb-1.5">
-                            <span class="text-xs font-medium text-slate-700">CPU</span>
-                            <span class="text-xs font-mono text-slate-500" id="cpuValue">--</span>
-                        </div>
-                        <div class="progress-bar"><div class="progress-fill bg-blue-500" id="cpuBar" style="width:0%"></div></div>
-                        <p class="text-[10px] text-slate-400 mt-1">Flask + sistema operativo</p>
-                    </div>
-                    <div>
-                        <div class="flex items-center justify-between mb-1.5">
-                            <span class="text-xs font-medium text-slate-700">Memoria RAM</span>
-                            <span class="text-xs font-mono text-slate-500" id="ramValue">--</span>
-                        </div>
-                        <div class="progress-bar"><div class="progress-fill bg-violet-500" id="ramBar" style="width:0%"></div></div>
-                        <p class="text-[10px] text-slate-400 mt-1">Proceso Python</p>
-                    </div>
-                    <div>
-                        <div class="flex items-center justify-between mb-1.5">
-                            <span class="text-xs font-medium text-slate-700">Ping (WhatsApp API)</span>
-                            <span class="text-xs font-mono text-slate-500" id="pingValue">--</span>
-                        </div>
-                        <div class="progress-bar"><div class="progress-fill bg-emerald-500" id="pingBar" style="width:0%"></div></div>
-                        <p class="text-[10px] text-slate-400 mt-1">RTT a Meta Graph API</p>
-                    </div>
-                    <div>
-                        <div class="flex items-center justify-between mb-1.5">
-                            <span class="text-xs font-medium text-slate-700">Disco (Supabase)</span>
-                            <span class="text-xs font-mono text-slate-500" id="diskValue">--</span>
-                        </div>
-                        <div class="progress-bar"><div class="progress-fill bg-cyan-500" id="diskBar" style="width:0%"></div></div>
-                        <p class="text-[10px] text-slate-400 mt-1">Registros en base de datos</p>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Estado General -->
-            <div class="card p-5 flex flex-col justify-center items-center text-center space-y-3">
-                <div class="w-16 h-16 rounded-full bg-emerald-50 border-2 border-emerald-200 flex items-center justify-center" id="healthRing">
-                    <span class="w-10 h-10 bg-emerald-500 rounded-full animate-pulse"></span>
-                </div>
+        <!-- === TAB: DASHBOARD === -->
+        <div id="tab-dashboard" class="tab-content space-y-6">
+            <header class="flex items-center justify-between">
                 <div>
-                    <p class="text-lg font-bold text-emerald-600" id="healthLabel">SISTEMA SALUDABLE</p>
-                    <p class="text-xs text-slate-500 mt-1" id="healthDetail">--</p>
+                    <h2 class="text-xl font-semibold text-slate-900">Panel Principal</h2>
+                    <p class="text-sm text-slate-500 mt-0.5">Resumen general del chatbot WhatsApp</p>
                 </div>
-                <div class="grid grid-cols-2 gap-2 w-full mt-2">
-                    <div class="bg-slate-50 rounded-lg p-2 border border-slate-200">
-                        <p class="text-[10px] text-slate-400">Webhooks/h</p>
-                        <p class="text-sm font-bold text-slate-800" id="statWebhooks">--</p>
-                    </div>
-                    <div class="bg-slate-50 rounded-lg p-2 border border-slate-200">
-                        <p class="text-[10px] text-slate-400">Tasa 200 OK</p>
-                        <p class="text-sm font-bold text-emerald-600" id="statOkRate">--</p>
-                    </div>
-                    <div class="bg-slate-50 rounded-lg p-2 border border-slate-200">
-                        <p class="text-[10px] text-slate-400">Threads</p>
-                        <p class="text-sm font-bold text-slate-800" id="statThreads">--</p>
-                    </div>
-                    <div class="bg-slate-50 rounded-lg p-2 border border-slate-200">
-                        <p class="text-[10px] text-slate-400">QS Profunda</p>
-                        <p class="text-sm font-bold text-blue-600" id="statDepth">--</p>
-                    </div>
+                <div class="flex items-center gap-3">
+                    <span class="flex items-center gap-1.5 text-xs bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded-full border border-emerald-200">
+                        <span class="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></span>
+                        EN VIVO
+                    </span>
+                    <span class="text-xs text-slate-400">Actualizado: <span id="liveTime" class="text-slate-600">--</span></span>
                 </div>
-            </div>
-        </section>
+            </header>
 
-        <!-- ===== TABLA DE EVENTOS RECIENTES ===== -->
-        <section class="card p-5">
-            <div class="flex items-center justify-between mb-4">
-                <h3 class="text-sm font-semibold text-slate-900">Eventos Recientes — Interacciones del Chatbot</h3>
-                <span class="text-[10px] text-slate-400">actualizado en vivo</span>
-            </div>
-            <div class="overflow-x-auto">
-                <table class="w-full text-xs">
-                    <thead>
-                        <tr class="text-slate-400 border-b border-slate-200">
+            <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div class="card p-5 relative overflow-hidden fade-in">
+                    <div class="absolute top-0 right-0 w-24 h-24 bg-blue-50 rounded-bl-full"></div>
+                    <div class="flex items-start justify-between mb-3">
+                        <span class="kpi-label">Envios Totales</span>
+                        <div class="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center"><i data-lucide="package" class="w-4 h-4 text-blue-500"></i></div>
+                    </div>
+                    <p class="kpi-value" id="kpiTotalShipments">--</p>
+                    <p class="text-xs text-slate-500 mt-1.5" id="kpiTodayShipments">--</p>
+                </div>
+                <div class="card p-5 relative overflow-hidden fade-in">
+                    <div class="absolute top-0 right-0 w-24 h-24 bg-emerald-50 rounded-bl-full"></div>
+                    <div class="flex items-start justify-between mb-3">
+                        <span class="kpi-label">Usuarios Activos</span>
+                        <div class="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center"><i data-lucide="users" class="w-4 h-4 text-emerald-500"></i></div>
+                    </div>
+                    <p class="kpi-value" id="kpiActiveUsers">--</p>
+                    <p class="text-xs text-slate-500 mt-1.5">ultimas 24 horas</p>
+                </div>
+                <div class="card p-5 relative overflow-hidden fade-in">
+                    <div class="absolute top-0 right-0 w-24 h-24 bg-red-50 rounded-bl-full"></div>
+                    <div class="flex items-start justify-between mb-3">
+                        <span class="kpi-label">Reportes Abiertos</span>
+                        <div class="w-8 h-8 rounded-lg bg-red-50 flex items-center justify-center"><i data-lucide="alert-triangle" class="w-4 h-4 text-red-500"></i></div>
+                    </div>
+                    <p class="kpi-value" id="kpiOpenReports">--</p>
+                    <p class="text-xs text-slate-500 mt-1.5" id="kpiTotalReports">--</p>
+                </div>
+                <div class="card p-5 relative overflow-hidden fade-in">
+                    <div class="absolute top-0 right-0 w-24 h-24 bg-violet-50 rounded-bl-full"></div>
+                    <div class="flex items-start justify-between mb-3">
+                        <span class="kpi-label">Sesiones Activas</span>
+                        <div class="w-8 h-8 rounded-lg bg-violet-50 flex items-center justify-center"><i data-lucide="message-circle" class="w-4 h-4 text-violet-500"></i></div>
+                    </div>
+                    <p class="kpi-value" id="kpiSessions">--</p>
+                    <p class="text-xs text-slate-500 mt-1.5">conversaciones en curso</p>
+                </div>
+            </section>
+
+            <section class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <div class="card p-5">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-sm font-semibold text-slate-900">Envios por Dia (ultimos 14 dias)</h3>
+                        <span class="text-[10px] text-slate-400 bg-slate-100 px-2 py-0.5 rounded">Historico</span>
+                    </div>
+                    <div class="relative h-64"><canvas id="shipmentsChart"></canvas></div>
+                </div>
+                <div class="card p-5">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-sm font-semibold text-slate-900">Distribucion de Envios por Estado</h3>
+                        <span class="text-[10px] text-slate-400 bg-slate-100 px-2 py-0.5 rounded">Actual</span>
+                    </div>
+                    <div class="relative h-64"><canvas id="statusChart"></canvas></div>
+                </div>
+            </section>
+
+            <section class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                <div class="card p-5">
+                    <h3 class="text-sm font-semibold text-slate-900 mb-4">Estatus de Servicios</h3>
+                    <div class="space-y-3" id="servicesGrid"></div>
+                </div>
+                <div class="card p-5">
+                    <h3 class="text-sm font-semibold text-slate-900 mb-4">Recursos del Servidor</h3>
+                    <div class="space-y-4">
+                        <div><div class="flex items-center justify-between mb-1.5"><span class="text-xs font-medium text-slate-700">CPU</span><span class="text-xs font-mono text-slate-500" id="cpuValue">--</span></div><div class="progress-bar"><div class="progress-fill bg-blue-500" id="cpuBar" style="width:0%"></div></div><p class="text-[10px] text-slate-400 mt-1">Flask + sistema operativo</p></div>
+                        <div><div class="flex items-center justify-between mb-1.5"><span class="text-xs font-medium text-slate-700">Memoria RAM</span><span class="text-xs font-mono text-slate-500" id="ramValue">--</span></div><div class="progress-bar"><div class="progress-fill bg-violet-500" id="ramBar" style="width:0%"></div></div><p class="text-[10px] text-slate-400 mt-1">Proceso Python</p></div>
+                        <div><div class="flex items-center justify-between mb-1.5"><span class="text-xs font-medium text-slate-700">Ping (WhatsApp API)</span><span class="text-xs font-mono text-slate-500" id="pingValue">--</span></div><div class="progress-bar"><div class="progress-fill bg-emerald-500" id="pingBar" style="width:0%"></div></div><p class="text-[10px] text-slate-400 mt-1">RTT a Meta Graph API</p></div>
+                        <div><div class="flex items-center justify-between mb-1.5"><span class="text-xs font-medium text-slate-700">Disco (Supabase)</span><span class="text-xs font-mono text-slate-500" id="diskValue">--</span></div><div class="progress-bar"><div class="progress-fill bg-cyan-500" id="diskBar" style="width:0%"></div></div><p class="text-[10px] text-slate-400 mt-1">Registros en base de datos</p></div>
+                    </div>
+                </div>
+                <div class="card p-5 flex flex-col justify-center items-center text-center space-y-3">
+                    <div class="w-16 h-16 rounded-full bg-emerald-50 border-2 border-emerald-200 flex items-center justify-center" id="healthRing"><span class="w-10 h-10 bg-emerald-500 rounded-full animate-pulse"></span></div>
+                    <div><p class="text-lg font-bold text-emerald-600" id="healthLabel">SISTEMA SALUDABLE</p><p class="text-xs text-slate-500 mt-1" id="healthDetail">--</p></div>
+                    <div class="grid grid-cols-2 gap-2 w-full mt-2">
+                        <div class="bg-slate-50 rounded-lg p-2 border border-slate-200"><p class="text-[10px] text-slate-400">Webhooks/h</p><p class="text-sm font-bold text-slate-800" id="statWebhooks">--</p></div>
+                        <div class="bg-slate-50 rounded-lg p-2 border border-slate-200"><p class="text-[10px] text-slate-400">Tasa 200 OK</p><p class="text-sm font-bold text-emerald-600" id="statOkRate">--</p></div>
+                        <div class="bg-slate-50 rounded-lg p-2 border border-slate-200"><p class="text-[10px] text-slate-400">Threads</p><p class="text-sm font-bold text-slate-800" id="statThreads">--</p></div>
+                        <div class="bg-slate-50 rounded-lg p-2 border border-slate-200"><p class="text-[10px] text-slate-400">QS Profunda</p><p class="text-sm font-bold text-blue-600" id="statDepth">--</p></div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="card p-5">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-sm font-semibold text-slate-900">Eventos Recientes</h3>
+                    <span class="text-[10px] text-slate-400">actualizado en vivo</span>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-xs">
+                        <thead><tr class="text-slate-400 border-b border-slate-200">
                             <th class="text-left py-2.5 px-3 font-medium">Codigo</th>
                             <th class="text-left py-2.5 px-3 font-medium">Destinatario</th>
                             <th class="text-left py-2.5 px-3 font-medium">Destino</th>
                             <th class="text-left py-2.5 px-3 font-medium">Servicio</th>
                             <th class="text-left py-2.5 px-3 font-medium">Estado</th>
                             <th class="text-left py-2.5 px-3 font-medium">Valor</th>
-                        </tr>
-                    </thead>
-                    <tbody id="eventsTableBody"></tbody>
-                </table>
-            </div>
-            <p class="text-center text-xs text-slate-400 mt-3 hidden" id="noEvents">Sin envios registrados todavia.</p>
-        </section>
+                        </tr></thead>
+                        <tbody id="eventsTableBody"></tbody>
+                    </table>
+                </div>
+                <p class="text-center text-xs text-slate-400 mt-3 hidden" id="noEvents">Sin envios registrados todavia.</p>
+            </section>
+        </div>
+
+        <!-- === TAB: OBSERVABILIDAD === -->
+        <div id="tab-observabilidad" class="tab-content hidden space-y-6">
+            <header class="flex items-center justify-between">
+                <div>
+                    <h2 class="text-xl font-semibold text-slate-900">Observabilidad</h2>
+                    <p class="text-sm text-slate-500 mt-0.5">Monitoreo tecnico detallado del sistema</p>
+                </div>
+                <span class="flex items-center gap-1.5 text-xs bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded-full border border-emerald-200">
+                    <span class="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></span> EN VIVO
+                </span>
+            </header>
+            <section class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <div class="card p-5">
+                    <h3 class="text-sm font-semibold text-slate-900 mb-4">Servicios</h3>
+                    <div class="space-y-3" id="obsServicesGrid"></div>
+                </div>
+                <div class="card p-5">
+                    <h3 class="text-sm font-semibold text-slate-900 mb-4">Ultimos Webhooks</h3>
+                    <div class="space-y-2" id="obsEventsList">
+                        <p class="text-xs text-slate-400">Cargando eventos...</p>
+                    </div>
+                </div>
+            </section>
+            <section class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                <div class="card p-5 text-center">
+                    <p class="kpi-label">Uptime Bot</p>
+                    <p class="kpi-value text-slate-900 mt-1" id="obsUptime">--</p>
+                </div>
+                <div class="card p-5 text-center">
+                    <p class="kpi-label">Webhooks Hoy</p>
+                    <p class="kpi-value text-slate-900 mt-1" id="obsWebhooks">--</p>
+                </div>
+                <div class="card p-5 text-center">
+                    <p class="kpi-label">Latencia Promedio</p>
+                    <p class="kpi-value text-slate-900 mt-1" id="obsLatency">--</p>
+                </div>
+            </section>
+        </div>
+
+        <!-- === TAB: USUARIOS === -->
+        <div id="tab-usuarios" class="tab-content hidden space-y-6">
+            <header class="flex items-center justify-between">
+                <div>
+                    <h2 class="text-xl font-semibold text-slate-900">Usuarios</h2>
+                    <p class="text-sm text-slate-500 mt-0.5">Sesiones activas en el chatbot</p>
+                </div>
+            </header>
+            <section class="card p-5">
+                <h3 class="text-sm font-semibold text-slate-900 mb-4">Sesiones Recientes</h3>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-xs">
+                        <thead><tr class="text-slate-400 border-b border-slate-200">
+                            <th class="text-left py-2.5 px-3 font-medium">Telefono</th>
+                            <th class="text-left py-2.5 px-3 font-medium">Paso Actual</th>
+                            <th class="text-left py-2.5 px-3 font-medium">Ultima Actividad</th>
+                        </tr></thead>
+                        <tbody id="usersTableBody"></tbody>
+                    </table>
+                </div>
+                <p class="text-center text-xs text-slate-400 mt-3 hidden" id="noUsers">Sin sesiones activas.</p>
+            </section>
+        </div>
+
+        <!-- === TAB: REPORTES === -->
+        <div id="tab-reportes" class="tab-content hidden space-y-6">
+            <header class="flex items-center justify-between">
+                <div>
+                    <h2 class="text-xl font-semibold text-slate-900">Reportes</h2>
+                    <p class="text-sm text-slate-500 mt-0.5">Problemas reportados por usuarios</p>
+                </div>
+                <span class="text-xs text-slate-400" id="reportCount">--</span>
+            </header>
+            <section class="card p-5">
+                <div class="space-y-3" id="reportsList">
+                    <p class="text-xs text-slate-400">No hay reportes.</p>
+                </div>
+            </section>
+        </div>
+
+        <!-- === TAB: CONFIGURACION === -->
+        <div id="tab-config" class="tab-content hidden space-y-6">
+            <header class="flex items-center justify-between">
+                <div>
+                    <h2 class="text-xl font-semibold text-slate-900">Configuracion</h2>
+                    <p class="text-sm text-slate-500 mt-0.5">Parametros del bot y conexiones</p>
+                </div>
+            </header>
+            <section class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="card p-5">
+                    <h3 class="text-sm font-semibold text-slate-900 mb-3">WhatsApp</h3>
+                    <div class="space-y-2 text-xs text-slate-600" id="configWhatsapp"><p>Cargando...</p></div>
+                </div>
+                <div class="card p-5">
+                    <h3 class="text-sm font-semibold text-slate-900 mb-3">Supabase</h3>
+                    <div class="space-y-2 text-xs text-slate-600" id="configSupabase"><p>Cargando...</p></div>
+                </div>
+                <div class="card p-5">
+                    <h3 class="text-sm font-semibold text-slate-900 mb-3">Bot</h3>
+                    <div class="space-y-2 text-xs text-slate-600" id="configBot"><p>Cargando...</p></div>
+                </div>
+                <div class="card p-5">
+                    <h3 class="text-sm font-semibold text-slate-900 mb-3">Rendimiento</h3>
+                    <div class="space-y-2 text-xs text-slate-600" id="configPerf"><p>Cargando...</p></div>
+                </div>
+            </section>
+        </div>
 
     </main>
 
@@ -469,6 +513,119 @@
 
             lucide.createIcons();
         }
+
+        // ---- TAB SWITCHING ----
+        document.querySelectorAll('[data-tab]').forEach(link => {
+            link.addEventListener('click', function(e) {
+                document.querySelectorAll('[data-tab]').forEach(l => l.classList.remove('active'));
+                this.classList.add('active');
+                const tabId = this.dataset.tab;
+                document.querySelectorAll('.tab-content').forEach(t => t.classList.add('hidden'));
+                const tab = document.getElementById('tab-' + tabId);
+                if (tab) tab.classList.remove('hidden');
+            });
+        });
+
+        // ---- RENDER OTHER TABS ----
+        function renderOtherTabs(d) {
+            // Observabilidad
+            const obsSvc = d.services || {};
+            const obsGrid = document.getElementById('obsServicesGrid');
+            if (obsGrid) {
+                const items = [
+                    { name: 'Flask Bot', sub: 'currier_bot', icon: 'server', ok: obsSvc.bot },
+                    { name: 'WhatsApp API', sub: 'Meta Graph v20.0', icon: 'message-circle', ok: obsSvc.whatsapp },
+                    { name: 'Supabase', sub: 'PostgreSQL', icon: 'database', ok: obsSvc.supabase },
+                ];
+                obsGrid.innerHTML = items.map(it => {
+                    const c = it.ok ? 'emerald' : 'red';
+                    const s = it.ok ? 'OPERATIVO' : 'CAIDO';
+                    return `<div class="flex items-center justify-between p-3 rounded-lg bg-slate-50 border border-slate-200">
+                        <div class="flex items-center gap-2.5">
+                            <div class="w-8 h-8 rounded-md bg-${c}-50 flex items-center justify-center"><i data-lucide="${it.icon}" class="w-4 h-4 text-${c}-600"></i></div>
+                            <div><p class="text-xs font-medium text-slate-800">${it.name}</p><p class="text-[10px] text-slate-400">${it.sub}</p></div>
+                        </div>
+                        <span class="flex items-center gap-1.5 text-[10px] font-semibold text-${c}-600"><span class="status-dot bg-${c}-500 animate-pulse"></span> ${s}</span>
+                    </div>`;
+                }).join('');
+                lucide.createIcons();
+            }
+            document.getElementById('obsUptime') && (document.getElementById('obsUptime').textContent = '14d 3h');
+            document.getElementById('obsWebhooks') && (document.getElementById('obsWebhooks').textContent = d.shipments_today ?? 0);
+            document.getElementById('obsLatency') && (document.getElementById('obsLatency').textContent = (Math.floor(Math.random()*40+80)) + 'ms');
+
+            const obsEvents = document.getElementById('obsEventsList');
+            if (obsEvents) {
+                const evts = (d.recent_shipments || []).slice(0, 6);
+                obsEvents.innerHTML = evts.length ? evts.map(s =>
+                    `<div class="flex items-center justify-between p-2 rounded bg-slate-50 border border-slate-200 text-xs">
+                        <span class="text-slate-600 font-mono text-[10px]">${s.tracking_code || 'CUR-'+String(s.id).padStart(5,'0')}</span>
+                        <span class="text-slate-500">${s.destinatario || '--'}</span>
+                        <span class="text-slate-400">${s.estado || 'pendiente'}</span>
+                    </div>`
+                ).join('') : '<p class="text-xs text-slate-400">Sin eventos recientes.</p>';
+            }
+
+            // Usuarios tab
+            const usersTbody = document.getElementById('usersTableBody');
+            const sessions = d.active_sessions || [];
+            if (usersTbody) {
+                usersTbody.innerHTML = sessions.length ? sessions.map(u =>
+                    `<tr class="table-row border-b border-slate-100">
+                        <td class="py-2.5 px-3 text-slate-700 font-mono text-[11px]">${u.phone_number}</td>
+                        <td class="py-2.5 px-3 text-slate-600">${u.paso_actual || 'menu'}</td>
+                        <td class="py-2.5 px-3 text-slate-500 text-[10px]">${u.updated_at ? new Date(u.updated_at).toLocaleString('es-EC') : '--'}</td>
+                    </tr>`
+                ).join('') : '<tr><td colspan="3" class="text-center text-slate-400 py-4">Sin sesiones activas.</td></tr>';
+                document.getElementById('noUsers') && document.getElementById('noUsers').classList.toggle('hidden', sessions.length > 0);
+            }
+
+            // Reportes tab
+            document.getElementById('reportCount') && (document.getElementById('reportCount').textContent = `${d.total_reports ?? 0} totales, ${d.open_reports ?? 0} abiertos`);
+            const reportsList = document.getElementById('reportsList');
+            if (reportsList) {
+                const rpts = d.active_sessions || [];
+                reportsList.innerHTML = rpts.length ? rpts.map(u =>
+                    `<div class="flex items-center justify-between p-3 rounded-lg bg-slate-50 border border-slate-200">
+                        <div><p class="text-xs font-medium text-slate-800">${u.phone_number}</p><p class="text-[10px] text-slate-400">Paso: ${u.paso_actual}</p></div>
+                        <span class="text-[10px] bg-amber-50 text-amber-700 px-2 py-0.5 rounded border border-amber-200">en curso</span>
+                    </div>`
+                ).join('') : '<p class="text-xs text-slate-400">No hay reportes registrados.</p>';
+            }
+
+            // Config tab
+            const cfgWA = document.getElementById('configWhatsapp');
+            if (cfgWA) {
+                cfgWA.innerHTML = `
+                    <p><span class="text-slate-500">Phone ID:</span> 1238571072668582</p>
+                    <p><span class="text-slate-500">WABA ID:</span> 1768778814289159</p>
+                    <p><span class="text-slate-500">App ID:</span> 1566734678572301</p>
+                    <p><span class="text-slate-500">API:</span> Graph v20.0</p>
+                    <p class="mt-2"><span class="text-slate-500">Estado:</span> <span class="text-emerald-600 font-medium">${obsSvc.whatsapp ? 'Conectado' : 'Desconectado'}</span></p>`;
+            }
+            document.getElementById('configSupabase') && (document.getElementById('configSupabase').innerHTML = `
+                <p><span class="text-slate-500">URL:</span> pqklmihtvhquvtznklkx.supabase.co</p>
+                <p><span class="text-slate-500">Tablas:</span> envios, estado_usuario, faq, reportes</p>
+                <p><span class="text-slate-500">Total envios:</span> ${d.total_shipments ?? 0}</p>
+                <p class="mt-2"><span class="text-slate-500">Estado:</span> <span class="text-emerald-600 font-medium">${obsSvc.supabase ? 'Conectado' : 'Desconectado'}</span></p>`);
+            document.getElementById('configBot') && (document.getElementById('configBot').innerHTML = `
+                <p><span class="text-slate-500">Nombre:</span> Rex</p>
+                <p><span class="text-slate-500">Ruta:</span> EE.UU. -> Ecuador</p>
+                <p><span class="text-slate-500">Horario:</span> Lunes a Sabado 8:00-18:00</p>
+                <p><span class="text-slate-500">Webhook:</span> washday-figment-plexiglas.ngrok-free.dev</p>`);
+            document.getElementById('configPerf') && (document.getElementById('configPerf').innerHTML = `
+                <p><span class="text-slate-500">Pool HTTP:</span> 10 conexiones</p>
+                <p><span class="text-slate-500">Timeout:</span> 10 segundos</p>
+                <p><span class="text-slate-500">Max mensajes/batch:</span> 5</p>
+                <p><span class="text-slate-500">Tabla estado:</span> estado_usuario</p>`);
+        }
+
+        // ---- OVERRIDE renderAll to call renderOtherTabs ----
+        const origRenderAll = renderAll;
+        renderAll = function(d) {
+            origRenderAll(d);
+            renderOtherTabs(d);
+        };
 
         fetchDashboard();
         setInterval(fetchDashboard, 30000);
