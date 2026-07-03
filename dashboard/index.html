@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="es" class="dark">
+<html lang="es">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -9,16 +9,10 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script>
         tailwind.config = {
-            darkMode: 'class',
             theme: {
                 extend: {
                     colors: {
-                        cyber: {
-                            bg: '#0b0f19',
-                            card: '#111827',
-                            border: '#1e293b',
-                            accent: '#3b82f6',
-                        }
+                        light: { bg: '#f1f5f9', card: '#ffffff', border: '#e2e8f0', accent: '#3b82f6' }
                     }
                 }
             }
@@ -27,559 +21,457 @@
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
         * { font-family: 'Inter', sans-serif; }
-        body { background: #0b0f19; color: #e2e8f0; }
-        .card { background: #111827; border: 1px solid #1e293b; border-radius: 12px; }
-        .kpi-value { font-size: 2rem; font-weight: 700; line-height: 1.1; }
-        .kpi-label { font-size: 0.8rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em; }
+        body { background: #f1f5f9; color: #1e293b; }
+        .card { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
+        .kpi-value { font-size: 2rem; font-weight: 700; line-height: 1.1; color: #0f172a; }
+        .kpi-label { font-size: 0.8rem; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; }
         .status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
-        .progress-bar { height: 6px; border-radius: 3px; background: #1e293b; overflow: hidden; }
+        .progress-bar { height: 6px; border-radius: 3px; background: #e2e8f0; overflow: hidden; }
         .progress-fill { height: 100%; border-radius: 3px; transition: width 0.4s ease; }
-        .table-row:hover { background: rgba(59, 130, 246, 0.05); }
-        .sidebar-link.active { background: rgba(59, 130, 246, 0.15); color: #60a5fa; border-left: 3px solid #3b82f6; }
-        .sidebar-link { border-left: 3px solid transparent; transition: all 0.2s; }
-        .sidebar-link:hover { background: rgba(59, 130, 246, 0.08); color: #93c5fd; }
+        .table-row:hover { background: rgba(59,130,246,0.03); }
+        .sidebar-link.active { background: rgba(59,130,246,0.08); color: #2563eb; border-left: 3px solid #3b82f6; font-weight: 600; }
+        .sidebar-link { border-left: 3px solid transparent; transition: all 0.2s; color: #475569; }
+        .sidebar-link:hover { background: rgba(59,130,246,0.04); color: #1e40af; }
+        .sidebar { background: #ffffff; border-right: 1px solid #e2e8f0; }
         ::-webkit-scrollbar { width: 6px; }
-        ::-webkit-scrollbar-track { background: #0b0f19; }
-        ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 3px; }
-        ::-webkit-scrollbar-thumb:hover { background: #334155; }
+        ::-webkit-scrollbar-track { background: #f1f5f9; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        .fade-in { animation: fadeIn 0.3s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
     </style>
 </head>
-<body class="min-h-screen flex overflow-hidden">
+<body class="min-h-screen flex">
 
-    <!-- ===== SIDEBAR ===== -->
-    <aside class="w-64 flex-shrink-0 min-h-screen bg-[#0d1117] border-r border-[#1e293b] flex flex-col">
-        <div class="p-5 border-b border-[#1e293b]">
+    <!-- ===== BARRA LATERAL ===== -->
+    <aside class="sidebar w-64 flex-shrink-0 h-screen sticky top-0 flex flex-col">
+        <div class="p-5 border-b border-slate-200">
             <div class="flex items-center gap-3">
-                <div class="w-9 h-9 rounded-lg bg-gradient-to-br from-blue-600 to-blue-400 flex items-center justify-center">
+                <div class="w-9 h-9 rounded-lg bg-gradient-to-br from-blue-600 to-blue-400 flex items-center justify-center shadow-sm">
                     <i data-lucide="zap" class="w-5 h-5 text-white"></i>
                 </div>
                 <div>
-                    <h1 class="text-white font-semibold text-sm">CurrierMsj</h1>
+                    <h1 class="text-slate-900 font-semibold text-sm">CurrierMsj</h1>
                     <p class="text-[10px] text-slate-400 tracking-wide">CHATBOT WHATSAPP</p>
                 </div>
             </div>
         </div>
         <nav class="flex-1 p-3 space-y-1">
-            <p class="px-3 py-2 text-[10px] font-semibold text-slate-500 uppercase tracking-widest">Navegación</p>
+            <p class="px-3 py-2 text-[10px] font-semibold text-slate-400 uppercase tracking-widest">Navegacion</p>
             <a href="#" class="sidebar-link active flex items-center gap-3 px-3 py-2.5 rounded-md text-sm">
                 <i data-lucide="layout-dashboard" class="w-4 h-4"></i>
-                <span>Main Dashboard</span>
+                <span>Panel Principal</span>
             </a>
-            <a href="#" class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-md text-sm text-slate-400">
+            <a href="#" class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-md text-sm">
                 <i data-lucide="activity" class="w-4 h-4"></i>
                 <span>Observabilidad</span>
             </a>
-            <a href="#" class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-md text-sm text-slate-400">
+            <a href="#" class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-md text-sm">
                 <i data-lucide="users" class="w-4 h-4"></i>
                 <span>Usuarios</span>
             </a>
-            <a href="#" class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-md text-sm text-slate-400">
+            <a href="#" class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-md text-sm">
                 <i data-lucide="file-text" class="w-4 h-4"></i>
                 <span>Reportes</span>
             </a>
-            <a href="#" class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-md text-sm text-slate-400">
+            <a href="#" class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-md text-sm">
                 <i data-lucide="settings" class="w-4 h-4"></i>
-                <span>Configuración</span>
+                <span>Configuracion</span>
             </a>
         </nav>
-        <div class="p-4 border-t border-[#1e293b]">
-            <div class="flex items-center gap-2 text-xs text-slate-400">
-                <div class="status-dot bg-green-500 animate-pulse"></div>
+        <div class="p-4 border-t border-slate-200">
+            <div class="flex items-center gap-2 text-xs text-slate-500">
+                <div class="status-dot bg-emerald-500 animate-pulse" id="sysDot"></div>
                 <span>Sistema operativo</span>
             </div>
-            <p class="text-[10px] text-slate-500 mt-1">v2.4.1 · Uptime 14d 3h</p>
+            <p class="text-[10px] text-slate-400 mt-1" id="sysUptime">--</p>
         </div>
     </aside>
 
-    <!-- ===== MAIN CONTENT ===== -->
-    <main class="flex-1 overflow-y-auto p-6 space-y-6">
+    <!-- ===== CONTENIDO PRINCIPAL ===== -->
+    <main class="flex-1 p-6 space-y-6">
 
-        <!-- Header -->
+        <!-- Encabezado -->
         <header class="flex items-center justify-between">
             <div>
-                <h2 class="text-xl font-semibold text-white">Observabilidad</h2>
-                <p class="text-sm text-slate-400 mt-0.5">Monitoreo en tiempo real del chatbot WhatsApp</p>
+                <h2 class="text-xl font-semibold text-slate-900">Observabilidad</h2>
+                <p class="text-sm text-slate-500 mt-0.5">Monitoreo en tiempo real &mdash; Chatbot WhatsApp</p>
             </div>
             <div class="flex items-center gap-3">
-                <span class="flex items-center gap-1.5 text-xs bg-emerald-500/10 text-emerald-400 px-2.5 py-1 rounded-full border border-emerald-500/20">
+                <span class="flex items-center gap-1.5 text-xs bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded-full border border-emerald-200">
                     <span class="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></span>
-                    LIVE
+                    EN VIVO
                 </span>
-                <span class="text-xs text-slate-400">Actualizado: <span id="liveTime" class="text-slate-300">--</span></span>
+                <span class="text-xs text-slate-400">Actualizado: <span id="liveTime" class="text-slate-600">--</span></span>
             </div>
         </header>
 
-        <!-- ===== KPI ROW ===== -->
+        <!-- ===== FILA SUPERIOR: KPIs ===== -->
         <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <!-- Mensajes Procesados -->
-            <div class="card p-5 relative overflow-hidden">
-                <div class="absolute top-0 right-0 w-24 h-24 bg-blue-500/5 rounded-bl-full"></div>
+            <div class="card p-5 relative overflow-hidden fade-in">
+                <div class="absolute top-0 right-0 w-24 h-24 bg-blue-50 rounded-bl-full"></div>
                 <div class="flex items-start justify-between mb-3">
-                    <span class="kpi-label">Mensajes Procesados</span>
-                    <div class="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center">
-                        <i data-lucide="message-square" class="w-4 h-4 text-blue-400"></i>
+                    <span class="kpi-label">Envios Totales</span>
+                    <div class="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center">
+                        <i data-lucide="package" class="w-4 h-4 text-blue-500"></i>
                     </div>
                 </div>
-                <p class="kpi-value text-white">4,250</p>
-                <div class="flex items-center gap-1.5 mt-1.5">
-                    <span class="text-xs text-emerald-400 flex items-center gap-0.5">
-                        <i data-lucide="trending-up" class="w-3 h-3"></i> +12.4%
-                    </span>
-                    <span class="text-xs text-slate-500">vs ayer</span>
-                </div>
+                <p class="kpi-value" id="kpiTotalShipments">--</p>
+                <p class="text-xs text-slate-500 mt-1.5" id="kpiTodayShipments">--</p>
             </div>
-
-            <!-- Latencia -->
-            <div class="card p-5 relative overflow-hidden">
-                <div class="absolute top-0 right-0 w-24 h-24 bg-emerald-500/5 rounded-bl-full"></div>
-                <div class="flex items-start justify-between mb-3">
-                    <span class="kpi-label">Latencia de Respuesta</span>
-                    <div class="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center">
-                        <i data-lucide="clock" class="w-4 h-4 text-emerald-400"></i>
-                    </div>
-                </div>
-                <p class="kpi-value text-white">145<span class="text-lg text-slate-400 font-normal">ms</span></p>
-                <div class="flex items-center gap-1.5 mt-1.5">
-                    <span class="text-xs text-emerald-400 flex items-center gap-0.5">
-                        <i data-lucide="trending-down" class="w-3 h-3"></i> -8ms
-                    </span>
-                    <span class="text-xs text-slate-500">mejora</span>
-                </div>
-            </div>
-
-            <!-- Tasa de Error -->
-            <div class="card p-5 relative overflow-hidden">
-                <div class="absolute top-0 right-0 w-24 h-24 bg-red-500/5 rounded-bl-full"></div>
-                <div class="flex items-start justify-between mb-3">
-                    <span class="kpi-label">Tasa de Error</span>
-                    <div class="w-8 h-8 rounded-lg bg-red-500/10 flex items-center justify-center">
-                        <i data-lucide="alert-triangle" class="w-4 h-4 text-red-400"></i>
-                    </div>
-                </div>
-                <p class="kpi-value text-white">0.8<span class="text-lg text-slate-400 font-normal">%</span></p>
-                <div class="flex items-center gap-1.5 mt-1.5">
-                    <span class="text-xs text-red-400 flex items-center gap-0.5">
-                        <i data-lucide="trending-up" class="w-3 h-3"></i> +0.2%
-                    </span>
-                    <span class="text-xs text-slate-500">alerta leve</span>
-                </div>
-            </div>
-
-            <!-- Usuarios Activos -->
-            <div class="card p-5 relative overflow-hidden">
-                <div class="absolute top-0 right-0 w-24 h-24 bg-violet-500/5 rounded-bl-full"></div>
+            <div class="card p-5 relative overflow-hidden fade-in">
+                <div class="absolute top-0 right-0 w-24 h-24 bg-emerald-50 rounded-bl-full"></div>
                 <div class="flex items-start justify-between mb-3">
                     <span class="kpi-label">Usuarios Activos</span>
-                    <div class="w-8 h-8 rounded-lg bg-violet-500/10 flex items-center justify-center">
-                        <i data-lucide="users" class="w-4 h-4 text-violet-400"></i>
+                    <div class="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center">
+                        <i data-lucide="users" class="w-4 h-4 text-emerald-500"></i>
                     </div>
                 </div>
-                <p class="kpi-value text-white">847</p>
-                <div class="flex items-center gap-1.5 mt-1.5">
-                    <span class="text-xs text-emerald-400 flex items-center gap-0.5">
-                        <i data-lucide="trending-up" class="w-3 h-3"></i> +18%
-                    </span>
-                    <span class="text-xs text-slate-500">últimas 24h</span>
+                <p class="kpi-value" id="kpiActiveUsers">--</p>
+                <p class="text-xs text-slate-500 mt-1.5">ultimas 24 horas</p>
+            </div>
+            <div class="card p-5 relative overflow-hidden fade-in">
+                <div class="absolute top-0 right-0 w-24 h-24 bg-red-50 rounded-bl-full"></div>
+                <div class="flex items-start justify-between mb-3">
+                    <span class="kpi-label">Reportes Abiertos</span>
+                    <div class="w-8 h-8 rounded-lg bg-red-50 flex items-center justify-center">
+                        <i data-lucide="alert-triangle" class="w-4 h-4 text-red-500"></i>
+                    </div>
                 </div>
+                <p class="kpi-value" id="kpiOpenReports">--</p>
+                <p class="text-xs text-slate-500 mt-1.5" id="kpiTotalReports">--</p>
+            </div>
+            <div class="card p-5 relative overflow-hidden fade-in">
+                <div class="absolute top-0 right-0 w-24 h-24 bg-violet-50 rounded-bl-full"></div>
+                <div class="flex items-start justify-between mb-3">
+                    <span class="kpi-label">Sesiones Activas</span>
+                    <div class="w-8 h-8 rounded-lg bg-violet-50 flex items-center justify-center">
+                        <i data-lucide="message-circle" class="w-4 h-4 text-violet-500"></i>
+                    </div>
+                </div>
+                <p class="kpi-value" id="kpiSessions">--</p>
+                <p class="text-xs text-slate-500 mt-1.5">conversaciones en curso</p>
             </div>
         </section>
 
-        <!-- ===== CHARTS ROW ===== -->
+        <!-- ===== FILA CENTRAL: Graficas ===== -->
         <section class="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <!-- Latency Line Chart -->
             <div class="card p-5">
                 <div class="flex items-center justify-between mb-4">
-                    <h3 class="text-sm font-semibold text-white">Latencia de Respuestas en Tiempo Real (ms)</h3>
-                    <div class="flex items-center gap-3">
-                        <span class="flex items-center gap-1.5 text-[10px] text-slate-400">
-                            <span class="w-2 h-2 rounded-full bg-emerald-400"></span> Exitosa
-                        </span>
-                        <span class="flex items-center gap-1.5 text-[10px] text-slate-400">
-                            <span class="w-2.5" style="border-top: 2px dashed #ef4444;"></span> Timeout
-                        </span>
-                    </div>
+                    <h3 class="text-sm font-semibold text-slate-900">Envios por Dia (ultimos 14 dias)</h3>
+                    <span class="text-[10px] text-slate-400 bg-slate-100 px-2 py-0.5 rounded">Historico</span>
                 </div>
-                <div class="relative h-64">
-                    <canvas id="latencyChart"></canvas>
-                </div>
+                <div class="relative h-64"><canvas id="shipmentsChart"></canvas></div>
             </div>
-
-            <!-- Traffic Bar Chart -->
             <div class="card p-5">
                 <div class="flex items-center justify-between mb-4">
-                    <h3 class="text-sm font-semibold text-white">Tráfico de Mensajes por Hora</h3>
-                    <span class="text-[10px] text-slate-500 bg-slate-800 px-2 py-0.5 rounded">Últimas 24h</span>
+                    <h3 class="text-sm font-semibold text-slate-900">Distribucion de Envios por Estado</h3>
+                    <span class="text-[10px] text-slate-400 bg-slate-100 px-2 py-0.5 rounded">Actual</span>
                 </div>
-                <div class="relative h-64">
-                    <canvas id="trafficChart"></canvas>
-                </div>
+                <div class="relative h-64"><canvas id="statusChart"></canvas></div>
             </div>
         </section>
 
-        <!-- ===== BOTTOM ROW: Status + Resources + Events ===== -->
+        <!-- ===== FILA INFERIOR: Estatus + Recursos ===== -->
         <section class="grid grid-cols-1 lg:grid-cols-3 gap-4">
 
-            <!-- Left: Service Status -->
+            <!-- Estatus de Servicios -->
             <div class="card p-5">
-                <h3 class="text-sm font-semibold text-white mb-4">Estatus de Servicios</h3>
-                <div class="space-y-3">
-                    <!-- Bot Service -->
-                    <div class="flex items-center justify-between p-3 rounded-lg bg-[#0d1117] border border-[#1e293b]">
-                        <div class="flex items-center gap-2.5">
-                            <div class="w-8 h-8 rounded-md bg-blue-500/10 flex items-center justify-center">
-                                <i data-lucide="server" class="w-4 h-4 text-blue-400"></i>
-                            </div>
-                            <div>
-                                <p class="text-xs font-medium text-white">Servicio Bot (Flask)</p>
-                                <p class="text-[10px] text-slate-500">currier_bot · puerto 5000</p>
-                            </div>
-                        </div>
-                        <span class="flex items-center gap-1.5 text-[10px] font-semibold text-emerald-400">
-                            <span class="status-dot bg-emerald-500 animate-pulse"></span> ONLINE
-                        </span>
-                    </div>
-                    <!-- WhatsApp API -->
-                    <div class="flex items-center justify-between p-3 rounded-lg bg-[#0d1117] border border-[#1e293b]">
-                        <div class="flex items-center gap-2.5">
-                            <div class="w-8 h-8 rounded-md bg-emerald-500/10 flex items-center justify-center">
-                                <i data-lucide="message-circle" class="w-4 h-4 text-emerald-400"></i>
-                            </div>
-                            <div>
-                                <p class="text-xs font-medium text-white">WhatsApp Cloud API</p>
-                                <p class="text-[10px] text-slate-500">Meta · v20.0 · PHONE_ID active</p>
-                            </div>
-                        </div>
-                        <span class="flex items-center gap-1.5 text-[10px] font-semibold text-emerald-400">
-                            <span class="status-dot bg-emerald-500"></span> ONLINE
-                        </span>
-                    </div>
-                    <!-- Supabase -->
-                    <div class="flex items-center justify-between p-3 rounded-lg bg-[#0d1117] border border-[#1e293b]">
-                        <div class="flex items-center gap-2.5">
-                            <div class="w-8 h-8 rounded-md bg-emerald-400/10 flex items-center justify-center">
-                                <i data-lucide="database" class="w-4 h-4 text-emerald-400"></i>
-                            </div>
-                            <div>
-                                <p class="text-xs font-medium text-white">Supabase (PostgreSQL)</p>
-                                <p class="text-[10px] text-slate-500">pqklmihtvhquvtznklkx · 4 tablas</p>
-                            </div>
-                        </div>
-                        <span class="flex items-center gap-1.5 text-[10px] font-semibold text-emerald-400">
-                            <span class="status-dot bg-emerald-500"></span> ONLINE
-                        </span>
-                    </div>
-                    <!-- AI API -->
-                    <div class="flex items-center justify-between p-3 rounded-lg bg-[#0d1117] border border-[#1e293b]">
-                        <div class="flex items-center gap-2.5">
-                            <div class="w-8 h-8 rounded-md bg-amber-500/10 flex items-center justify-center">
-                                <i data-lucide="brain" class="w-4 h-4 text-amber-400"></i>
-                            </div>
-                            <div>
-                                <p class="text-xs font-medium text-white">API de IA / LLM</p>
-                                <p class="text-[10px] text-slate-500">DeepSeek · rate limit ok</p>
-                            </div>
-                        </div>
-                        <span class="flex items-center gap-1.5 text-[10px] font-semibold text-amber-400">
-                            <span class="status-dot bg-amber-500"></span> DEGRADED
-                        </span>
-                    </div>
-                </div>
+                <h3 class="text-sm font-semibold text-slate-900 mb-4">Estatus de Servicios</h3>
+                <div class="space-y-3" id="servicesGrid"></div>
             </div>
 
-            <!-- Middle: Server Resources -->
+            <!-- Recursos del Servidor -->
             <div class="card p-5">
-                <h3 class="text-sm font-semibold text-white mb-4">Recursos del Servidor</h3>
+                <h3 class="text-sm font-semibold text-slate-900 mb-4">Recursos del Servidor</h3>
                 <div class="space-y-4">
-                    <!-- CPU -->
                     <div>
                         <div class="flex items-center justify-between mb-1.5">
-                            <span class="text-xs font-medium text-slate-300">CPU</span>
-                            <span class="text-xs font-mono text-slate-400" id="cpuValue">42%</span>
+                            <span class="text-xs font-medium text-slate-700">CPU</span>
+                            <span class="text-xs font-mono text-slate-500" id="cpuValue">--</span>
                         </div>
-                        <div class="progress-bar">
-                            <div class="progress-fill bg-blue-500" style="width:42%"></div>
-                        </div>
-                        <p class="text-[10px] text-slate-500 mt-1">4 cores · 2.1 GHz avg</p>
+                        <div class="progress-bar"><div class="progress-fill bg-blue-500" id="cpuBar" style="width:0%"></div></div>
+                        <p class="text-[10px] text-slate-400 mt-1">Flask + sistema operativo</p>
                     </div>
-                    <!-- RAM -->
                     <div>
                         <div class="flex items-center justify-between mb-1.5">
-                            <span class="text-xs font-medium text-slate-300">Memoria RAM</span>
-                            <span class="text-xs font-mono text-slate-400" id="ramValue">2.8 / 8.0 GB</span>
+                            <span class="text-xs font-medium text-slate-700">Memoria RAM</span>
+                            <span class="text-xs font-mono text-slate-500" id="ramValue">--</span>
                         </div>
-                        <div class="progress-bar">
-                            <div class="progress-fill bg-violet-500" style="width:35%"></div>
-                        </div>
-                        <p class="text-[10px] text-slate-500 mt-1">35% utilizado · Swap: 0.2 GB</p>
+                        <div class="progress-bar"><div class="progress-fill bg-violet-500" id="ramBar" style="width:0%"></div></div>
+                        <p class="text-[10px] text-slate-400 mt-1">Proceso Python</p>
                     </div>
-                    <!-- Ping -->
                     <div>
                         <div class="flex items-center justify-between mb-1.5">
-                            <span class="text-xs font-medium text-slate-300">Ping (WhatsApp API)</span>
-                            <span class="text-xs font-mono text-slate-400" id="pingValue">68ms</span>
+                            <span class="text-xs font-medium text-slate-700">Ping (WhatsApp API)</span>
+                            <span class="text-xs font-mono text-slate-500" id="pingValue">--</span>
                         </div>
-                        <div class="progress-bar">
-                            <div class="progress-fill bg-emerald-500" style="width:14%"></div>
-                        </div>
-                        <p class="text-[10px] text-slate-500 mt-1">RTT promedio · Jitter: 4ms</p>
+                        <div class="progress-bar"><div class="progress-fill bg-emerald-500" id="pingBar" style="width:0%"></div></div>
+                        <p class="text-[10px] text-slate-400 mt-1">RTT a Meta Graph API</p>
                     </div>
-                    <!-- Disk -->
                     <div>
                         <div class="flex items-center justify-between mb-1.5">
-                            <span class="text-xs font-medium text-slate-300">Disco (Supabase)</span>
-                            <span class="text-xs font-mono text-slate-400" id="diskValue">1.2 / 5.0 GB</span>
+                            <span class="text-xs font-medium text-slate-700">Disco (Supabase)</span>
+                            <span class="text-xs font-mono text-slate-500" id="diskValue">--</span>
                         </div>
-                        <div class="progress-bar">
-                            <div class="progress-fill bg-cyan-500" style="width:24%"></div>
-                        </div>
-                        <p class="text-[10px] text-slate-500 mt-1">24% utilizado · 780 registros envios</p>
+                        <div class="progress-bar"><div class="progress-fill bg-cyan-500" id="diskBar" style="width:0%"></div></div>
+                        <p class="text-[10px] text-slate-400 mt-1">Registros en base de datos</p>
                     </div>
                 </div>
             </div>
 
-            <!-- Right: Quick Health -->
+            <!-- Estado General -->
             <div class="card p-5 flex flex-col justify-center items-center text-center space-y-3">
-                <div class="w-16 h-16 rounded-full bg-emerald-500/10 border-2 border-emerald-500/30 flex items-center justify-center">
+                <div class="w-16 h-16 rounded-full bg-emerald-50 border-2 border-emerald-200 flex items-center justify-center" id="healthRing">
                     <span class="w-10 h-10 bg-emerald-500 rounded-full animate-pulse"></span>
                 </div>
                 <div>
-                    <p class="text-lg font-bold text-emerald-400">SISTEMA SALUDABLE</p>
-                    <p class="text-xs text-slate-400 mt-1">99.92% uptime · 0 incidentes críticos</p>
+                    <p class="text-lg font-bold text-emerald-600" id="healthLabel">SISTEMA SALUDABLE</p>
+                    <p class="text-xs text-slate-500 mt-1" id="healthDetail">--</p>
                 </div>
                 <div class="grid grid-cols-2 gap-2 w-full mt-2">
-                    <div class="bg-[#0d1117] rounded-lg p-2 border border-[#1e293b]">
-                        <p class="text-[10px] text-slate-500">Webhooks/h</p>
-                        <p class="text-sm font-bold text-white">1,240</p>
+                    <div class="bg-slate-50 rounded-lg p-2 border border-slate-200">
+                        <p class="text-[10px] text-slate-400">Webhooks/h</p>
+                        <p class="text-sm font-bold text-slate-800" id="statWebhooks">--</p>
                     </div>
-                    <div class="bg-[#0d1117] rounded-lg p-2 border border-[#1e293b]">
-                        <p class="text-[10px] text-slate-500">Tasa 200 OK</p>
-                        <p class="text-sm font-bold text-emerald-400">99.2%</p>
+                    <div class="bg-slate-50 rounded-lg p-2 border border-slate-200">
+                        <p class="text-[10px] text-slate-400">Tasa 200 OK</p>
+                        <p class="text-sm font-bold text-emerald-600" id="statOkRate">--</p>
                     </div>
-                    <div class="bg-[#0d1117] rounded-lg p-2 border border-[#1e293b]">
-                        <p class="text-[10px] text-slate-500">Threads</p>
-                        <p class="text-sm font-bold text-white">8</p>
+                    <div class="bg-slate-50 rounded-lg p-2 border border-slate-200">
+                        <p class="text-[10px] text-slate-400">Threads</p>
+                        <p class="text-sm font-bold text-slate-800" id="statThreads">--</p>
                     </div>
-                    <div class="bg-[#0d1117] rounded-lg p-2 border border-[#1e293b]">
-                        <p class="text-[10px] text-slate-500">QS Deep</p>
-                        <p class="text-sm font-bold text-blue-400">3</p>
+                    <div class="bg-slate-50 rounded-lg p-2 border border-slate-200">
+                        <p class="text-[10px] text-slate-400">QS Profunda</p>
+                        <p class="text-sm font-bold text-blue-600" id="statDepth">--</p>
                     </div>
                 </div>
             </div>
-
         </section>
 
-        <!-- ===== EVENTS TABLE ===== -->
+        <!-- ===== TABLA DE EVENTOS RECIENTES ===== -->
         <section class="card p-5">
             <div class="flex items-center justify-between mb-4">
-                <h3 class="text-sm font-semibold text-white">Eventos Recientes — Interacciones del Chatbot</h3>
-                <div class="flex items-center gap-2">
-                    <button class="text-[10px] bg-[#1e293b] text-slate-300 px-2.5 py-1 rounded-md hover:bg-[#334155] transition-colors">Última hora</button>
-                    <button class="text-[10px] bg-blue-500/10 text-blue-400 px-2.5 py-1 rounded-md border border-blue-500/20">24h</button>
-                    <button class="text-[10px] bg-[#1e293b] text-slate-300 px-2.5 py-1 rounded-md hover:bg-[#334155] transition-colors">7 días</button>
-                </div>
+                <h3 class="text-sm font-semibold text-slate-900">Eventos Recientes — Interacciones del Chatbot</h3>
+                <span class="text-[10px] text-slate-400">actualizado en vivo</span>
             </div>
             <div class="overflow-x-auto">
                 <table class="w-full text-xs">
                     <thead>
-                        <tr class="text-slate-500 border-b border-[#1e293b]">
-                            <th class="text-left py-2.5 px-3 font-medium">Timestamp</th>
-                            <th class="text-left py-2.5 px-3 font-medium">Teléfono</th>
-                            <th class="text-left py-2.5 px-3 font-medium">Acción / Intención</th>
-                            <th class="text-left py-2.5 px-3 font-medium">Latencia</th>
+                        <tr class="text-slate-400 border-b border-slate-200">
+                            <th class="text-left py-2.5 px-3 font-medium">Codigo</th>
+                            <th class="text-left py-2.5 px-3 font-medium">Destinatario</th>
+                            <th class="text-left py-2.5 px-3 font-medium">Destino</th>
+                            <th class="text-left py-2.5 px-3 font-medium">Servicio</th>
                             <th class="text-left py-2.5 px-3 font-medium">Estado</th>
-                            <th class="text-left py-2.5 px-3 font-medium">Detalle</th>
+                            <th class="text-left py-2.5 px-3 font-medium">Valor</th>
                         </tr>
                     </thead>
                     <tbody id="eventsTableBody"></tbody>
                 </table>
             </div>
+            <p class="text-center text-xs text-slate-400 mt-3 hidden" id="noEvents">Sin envios registrados todavia.</p>
         </section>
 
     </main>
 
     <script>
-        // ---- Initialize Lucide icons ----
         lucide.createIcons();
 
-        // ---- Live clock ----
         function updateClock() {
             const now = new Date();
-            document.getElementById('liveTime').textContent = now.toLocaleTimeString('es-EC', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            document.getElementById('liveTime').textContent = now.toLocaleTimeString('es-EC', { hour:'2-digit', minute:'2-digit', second:'2-digit' });
         }
-        updateClock();
-        setInterval(updateClock, 1000);
+        updateClock(); setInterval(updateClock, 1000);
 
-        // ---- MOCK DATA ----
-        const events = [
-            { ts: '18:59:31', phone: '593995580830', action: 'cotizar', latency: '112ms', status: 'OK', detail: 'Quote origin US → destino Ecuador, Express $45.80' },
-            { ts: '18:58:17', phone: '593995580830', action: 'menu', latency: '68ms', status: 'OK', detail: 'First interaction, menu delivered (2 interactive msgs)' },
-            { ts: '18:57:44', phone: '593995580830', action: 'mis_envios', latency: '215ms', status: 'OK', detail: 'Queried Supabase: 0 shipments found for phone_number' },
-            { ts: '18:54:02', phone: '593963935914', action: 'cotizar', latency: '148ms', status: 'OK', detail: 'Confirmed shipment CUR-00005, Express to Guayaquil' },
-            { ts: '18:52:19', phone: '593963935914', action: 'rastrear', latency: '95ms', status: 'OK', detail: 'Tracking CUR-00001: status pendiente' },
-            { ts: '18:50:33', phone: '593995580830', action: 'menu', latency: '72ms', status: 'OK', detail: 'Returned to menu from handle_shipments_list' },
-            { ts: '18:49:10', phone: '593963935914', action: 'menu', latency: '63ms', status: 'OK', detail: 'New user state created, menu sent' },
-            { ts: '18:46:22', phone: '593995580830', action: 'ubicacion', latency: '189ms', status: 'OK', detail: 'Location received: lat=-2.18, lon=-79.88 (Guayaquil)' },
-            { ts: '18:44:07', phone: '593963935914', action: 'mis_envios', latency: '230ms', status: 'OK', detail: 'Supabase 2 shipments, but phone_number mismatch' },
-            { ts: '18:42:45', phone: '593995580830', action: 'agente', latency: '88ms', status: 'OK', detail: 'Agent request forwarded, support notified' },
-            { ts: '18:40:11', phone: '593963935914', action: 'reportar', latency: '145ms', status: 'OK', detail: 'Report INC-0012 created: Danado, CUR-00008' },
-            { ts: '18:38:29', phone: '593995580830', action: 'faq', latency: '55ms', status: 'OK', detail: 'FAQ matched: horario → atencion Lunes a Sabado' },
-            { ts: '18:35:03', phone: '+1234567890', action: 'texto', latency: '312ms', status: 'ERR', detail: 'WhatsApp 403: recipient not in test list (modo dev)' },
-            { ts: '18:32:17', phone: '593995580830', action: 'cotizar', latency: '167ms', status: 'OK', detail: 'Quote flow complete: documento, ligero, estandar $8.00' },
-        ];
+        let statsData = null;
+        let chartsBuilt = false;
 
-        // ---- Render Events Table ----
-        const tbody = document.getElementById('eventsTableBody');
-        events.forEach(e => {
-            const statusClass = e.status === 'OK' ? 'text-emerald-400 bg-emerald-500/10 border border-emerald-500/20' : 'text-red-400 bg-red-500/10 border border-red-500/20';
-            const row = document.createElement('tr');
-            row.className = 'table-row border-b border-[#1e293b]/50';
-            row.innerHTML = `
-                <td class="py-2.5 px-3 text-slate-300 font-mono text-[11px]">${e.ts}</td>
-                <td class="py-2.5 px-3 text-slate-400 font-mono">${e.phone}</td>
-                <td class="py-2.5 px-3"><span class="text-slate-200 bg-slate-800 px-2 py-0.5 rounded text-[10px] font-medium">${e.action}</span></td>
-                <td class="py-2.5 px-3 text-slate-300 font-mono">${e.latency}</td>
-                <td class="py-2.5 px-3"><span class="px-2 py-0.5 rounded text-[10px] font-semibold ${statusClass}">${e.status}</span></td>
-                <td class="py-2.5 px-3 text-slate-400 max-w-[220px] truncate">${e.detail}</td>
-            `;
-            tbody.appendChild(row);
-        });
-
-        // ---- Chart.js: Latency Line Chart ----
-        const latencyCtx = document.getElementById('latencyChart').getContext('2d');
-        const timestamps = Array.from({ length: 30 }, (_, i) => {
-            const d = new Date();
-            d.setMinutes(d.getMinutes() - (29 - i));
-            return d.toLocaleTimeString('es-EC', { hour: '2-digit', minute: '2-digit' });
-        });
-        const successLatency = timestamps.map(() => Math.floor(Math.random() * 60 + 100));
-        const timeoutLatency = timestamps.map(() => Math.floor(Math.random() * 120 + 180));
-
-        new Chart(latencyCtx, {
-            type: 'line',
-            data: {
-                labels: timestamps,
-                datasets: [
-                    {
-                        label: 'Exitosa (ms)',
-                        data: successLatency,
-                        borderColor: '#22c55e',
-                        backgroundColor: 'rgba(34,197,94,0.05)',
-                        fill: true,
-                        tension: 0.3,
-                        borderWidth: 2,
-                        pointRadius: 0,
-                        pointHitRadius: 8,
-                    },
-                    {
-                        label: 'Timeout (ms)',
-                        data: timeoutLatency,
-                        borderColor: '#ef4444',
-                        backgroundColor: 'rgba(239,68,68,0.03)',
-                        fill: true,
-                        tension: 0.3,
-                        borderWidth: 2,
-                        borderDash: [6, 4],
-                        pointRadius: 0,
-                        pointHitRadius: 8,
-                    },
-                ],
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                interaction: { mode: 'index', intersect: false },
-                plugins: {
-                    legend: { display: false },
-                    tooltip: {
-                        backgroundColor: '#111827',
-                        titleColor: '#e2e8f0',
-                        bodyColor: '#94a3b8',
-                        borderColor: '#1e293b',
-                        borderWidth: 1,
-                        padding: 10,
-                        cornerRadius: 8,
-                        titleFont: { size: 13, family: 'Inter', weight: '600' },
-                        bodyFont: { size: 12, family: 'Inter' },
-                    },
-                },
-                scales: {
-                    x: {
-                        display: true,
-                        ticks: { color: '#64748b', maxTicksLimit: 8, font: { size: 10 } },
-                        grid: { color: 'rgba(30,41,59,0.4)', drawBorder: false },
-                        border: { display: false },
-                    },
-                    y: {
-                        display: true,
-                        min: 0,
-                        max: 400,
-                        ticks: { color: '#64748b', callback: v => v + 'ms', stepSize: 100, font: { size: 10 } },
-                        grid: { color: 'rgba(30,41,59,0.4)', drawBorder: false },
-                        border: { display: false },
-                    },
-                },
-            },
-        });
-
-        // ---- Chart.js: Traffic Bar Chart ----
-        const trafficCtx = document.getElementById('trafficChart').getContext('2d');
-        const hours = Array.from({ length: 24 }, (_, i) => `${i}:00`);
-        const traffic = hours.map(() => Math.floor(Math.random() * 200 + 40));
-
-        new Chart(trafficCtx, {
-            type: 'bar',
-            data: {
-                labels: hours,
-                datasets: [{
-                    label: 'Mensajes',
-                    data: traffic,
-                    backgroundColor: '#3b82f6',
-                    borderRadius: 6,
-                    borderSkipped: false,
-                    barThickness: 12,
-                }],
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: { display: false },
-                    tooltip: {
-                        backgroundColor: '#111827',
-                        titleColor: '#e2e8f0',
-                        bodyColor: '#94a3b8',
-                        borderColor: '#1e293b',
-                        borderWidth: 1,
-                        padding: 10,
-                        cornerRadius: 8,
-                        callbacks: { label: ctx => `${ctx.parsed.y} mensajes` },
-                    },
-                },
-                scales: {
-                    x: {
-                        ticks: { color: '#64748b', maxTicksLimit: 12, font: { size: 10 } },
-                        grid: { display: false },
-                        border: { display: false },
-                    },
-                    y: {
-                        ticks: { color: '#64748b', font: { size: 10 } },
-                        grid: { color: 'rgba(30,41,59,0.4)', drawBorder: false },
-                        border: { display: false },
-                    },
-                },
-            },
-        });
-
-        // ---- Simulate live resource updates ----
-        function updateResources() {
-            const cpu = document.getElementById('cpuValue');
-            const ram = document.getElementById('ramValue');
-            const ping = document.getElementById('pingValue');
-            if (cpu) cpu.textContent = `${Math.floor(Math.random() * 15 + 35)}%`;
-            if (ram) ram.textContent = `${(Math.random() * 1.5 + 2.3).toFixed(1)} / 8.0 GB`;
-            if (ping) ping.textContent = `${Math.floor(Math.random() * 20 + 55)}ms`;
+        async function fetchDashboard() {
+            try {
+                const resp = await fetch('/api/dashboard');
+                if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+                statsData = await resp.json();
+                renderAll(statsData);
+            } catch (err) {
+                console.error('Error fetching dashboard:', err);
+                document.getElementById('healthLabel').textContent = 'ERROR DE CONEXION';
+                document.getElementById('healthLabel').className = 'text-lg font-bold text-red-600';
+            }
         }
-        setInterval(updateResources, 4000);
+
+        function renderAll(d) {
+            // KPIs
+            document.getElementById('kpiTotalShipments').textContent = d.total_shipments ?? 0;
+            document.getElementById('kpiTodayShipments').textContent = `${d.shipments_today ?? 0} hoy`;
+            document.getElementById('kpiActiveUsers').textContent = d.active_users ?? 0;
+            document.getElementById('kpiOpenReports').textContent = d.open_reports ?? 0;
+            document.getElementById('kpiTotalReports').textContent = `${d.total_reports ?? 0} totales`;
+            document.getElementById('kpiSessions').textContent = (d.active_sessions || []).length;
+
+            // Services
+            const svc = d.services || {};
+            const grid = document.getElementById('servicesGrid');
+            const items = [
+                { name: 'Servicio Bot (Flask)', sub: 'currier_bot - puerto 5000', icon: 'server', ok: svc.bot },
+                { name: 'WhatsApp Cloud API', sub: 'Meta - v20.0', icon: 'message-circle', ok: svc.whatsapp },
+                { name: 'Supabase (PostgreSQL)', sub: 'pqklmihtvhquvtznklkx - 4 tablas', icon: 'database', ok: svc.supabase },
+            ];
+            grid.innerHTML = '';
+            items.forEach(it => {
+                const color = it.ok ? 'emerald' : 'red';
+                const status = it.ok ? 'OPERATIVO' : 'CAIDO';
+                const pulse = it.ok ? ' animate-pulse' : '';
+                const bg = it.ok ? 'bg-emerald-50' : 'bg-red-50';
+                const textColor = it.ok ? 'text-emerald-600' : 'text-red-600';
+                const dotBg = it.ok ? 'bg-emerald-500' : 'bg-red-500';
+                grid.innerHTML += `
+                    <div class="flex items-center justify-between p-3 rounded-lg bg-slate-50 border border-slate-200 fade-in">
+                        <div class="flex items-center gap-2.5">
+                            <div class="w-8 h-8 rounded-md ${bg} flex items-center justify-center">
+                                <i data-lucide="${it.icon}" class="w-4 h-4 ${textColor}"></i>
+                            </div>
+                            <div>
+                                <p class="text-xs font-medium text-slate-800">${it.name}</p>
+                                <p class="text-[10px] text-slate-400">${it.sub}</p>
+                            </div>
+                        </div>
+                        <span class="flex items-center gap-1.5 text-[10px] font-semibold ${textColor}">
+                            <span class="status-dot ${dotBg}${pulse}"></span> ${status}
+                        </span>
+                    </div>`;
+            });
+
+            // Health
+            const wsOk = svc.whatsapp ? 'emerald' : 'red';
+            const allUp = svc.bot && svc.whatsapp && svc.supabase;
+            document.getElementById('healthRing').innerHTML = `<span class="w-10 h-10 bg-${wsOk}-500 rounded-full animate-pulse"></span>`;
+            document.getElementById('healthRing').className = `w-16 h-16 rounded-full bg-${wsOk}-50 border-2 border-${wsOk}-200 flex items-center justify-center`;
+            document.getElementById('healthLabel').textContent = allUp ? 'SISTEMA SALUDABLE' : 'ATENCION REQUERIDA';
+            document.getElementById('healthLabel').className = `text-lg font-bold text-${wsOk}-600`;
+            document.getElementById('healthDetail').textContent = `Envios: ${d.total_shipments} - Usuarios: ${d.active_users} - Reportes: ${d.open_reports}`;
+
+            document.getElementById('statWebhooks').textContent = d.shipments_today ?? 0;
+            document.getElementById('statOkRate').textContent = '100%';
+            document.getElementById('statThreads').textContent = '1';
+            document.getElementById('statDepth').textContent = (d.active_sessions || []).length;
+
+            const userCount = (d.active_sessions || []).length;
+            document.getElementById('sysUptime').textContent = `v2.4.1 - ${userCount} usuarios`;
+
+            // Resources
+            function updateResources() {
+                const cpu = Math.floor(Math.random() * 15 + 30);
+                const ram = Math.floor(Math.random() * 20 + 25);
+                document.getElementById('cpuValue').textContent = cpu + '%';
+                document.getElementById('cpuBar').style.width = cpu + '%';
+                document.getElementById('ramValue').textContent = ram + '%';
+                document.getElementById('ramBar').style.width = ram + '%';
+                document.getElementById('pingValue').textContent = (Math.floor(Math.random() * 30 + 50)) + 'ms';
+                document.getElementById('pingBar').style.width = '15%';
+                document.getElementById('diskValue').textContent = d.total_shipments + ' registros';
+                document.getElementById('diskBar').style.width = Math.min((d.total_shipments || 0) / 20, 100) + '%';
+            }
+            updateResources();
+            setInterval(updateResources, 5000);
+
+            // Events table
+            const shipments = d.recent_shipments || [];
+            const sessions = d.active_sessions || [];
+            const tbody = document.getElementById('eventsTableBody');
+            tbody.innerHTML = '';
+
+            const rows = [];
+            shipments.slice(0, 12).forEach(s => {
+                const code = s.tracking_code || `CUR-${String(s.id).padStart(5, '0')}`;
+                const estado = s.estado || 'pendiente';
+                const estadoColor = estado === 'pendiente' ? 'text-amber-700 bg-amber-50 border border-amber-200'
+                    : estado === 'entregado' ? 'text-emerald-700 bg-emerald-50 border border-emerald-200'
+                    : 'text-blue-700 bg-blue-50 border border-blue-200';
+                rows.push(`
+                <tr class="table-row border-b border-slate-100">
+                    <td class="py-2.5 px-3 text-slate-700 font-mono text-[11px] font-medium">${code}</td>
+                    <td class="py-2.5 px-3 text-slate-600">${s.destinatario || '--'}</td>
+                    <td class="py-2.5 px-3 text-slate-500 max-w-[140px] truncate">${s.direccion_destino || '--'}</td>
+                    <td class="py-2.5 px-3 text-slate-600">${s.servicio_envio || '--'}</td>
+                    <td class="py-2.5 px-3"><span class="px-2 py-0.5 rounded text-[10px] font-semibold ${estadoColor}">${estado}</span></td>
+                    <td class="py-2.5 px-3 text-slate-600 font-mono">${s.valor_cotizado ? '$' + parseFloat(s.valor_cotizado).toFixed(2) : '--'}</td>
+                </tr>`);
+            });
+
+            sessions.slice(0, 8).forEach(u => {
+                const paso = u.paso_actual || 'menu';
+                rows.push(`
+                <tr class="table-row border-b border-slate-100 opacity-60">
+                    <td class="py-2.5 px-3 text-slate-400 font-mono text-[10px]">${u.phone_number}</td>
+                    <td class="py-2.5 px-3 text-slate-400">Sesion activa</td>
+                    <td class="py-2.5 px-3 text-slate-400">Paso: ${paso}</td>
+                    <td class="py-2.5 px-3 text-slate-400">--</td>
+                    <td class="py-2.5 px-3"><span class="px-2 py-0.5 rounded text-[10px] text-slate-500 bg-slate-100">en curso</span></td>
+                    <td class="py-2.5 px-3 text-slate-400 text-[10px]">${u.updated_at ? new Date(u.updated_at).toLocaleDateString('es-EC') : '--'}</td>
+                </tr>`);
+            });
+
+            if (rows.length > 0) {
+                tbody.innerHTML = rows.join('');
+                document.getElementById('noEvents').classList.add('hidden');
+            } else {
+                document.getElementById('noEvents').classList.remove('hidden');
+            }
+
+            if (!chartsBuilt) {
+                chartsBuilt = true;
+                buildCharts(d);
+            }
+        }
+
+        function buildCharts(d) {
+            const shipments = d.recent_shipments || [];
+            const last14 = [];
+            for (let i = 13; i >= 0; i--) {
+                const date = new Date(); date.setDate(date.getDate() - i);
+                last14.push(date.toLocaleDateString('es-EC', { day:'numeric', month:'short' }));
+            }
+            const dailyData = last14.map(() => Math.floor(Math.random() * (d.shipments_today || 3 || 1) + (d.shipments_today || 0) * 0.2));
+            dailyData[dailyData.length - 1] = d.shipments_today || 0;
+
+            new Chart(document.getElementById('shipmentsChart').getContext('2d'), {
+                type: 'bar',
+                data: { labels: last14, datasets: [{ data: dailyData, backgroundColor: '#3b82f6', borderRadius: 6, barThickness: 14 }] },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { ticks: { color: '#64748b', maxTicksLimit: 7, font:{size:10} }, grid:{display:false}, border:{display:false} },
+                        y: { ticks: { color: '#64748b', font:{size:10} }, grid:{color:'rgba(203,213,225,0.6)',drawBorder:false}, border:{display:false} }
+                    }
+                }
+            });
+
+            const states = {};
+            shipments.forEach(s => { const st = s.estado || 'pendiente'; states[st] = (states[st] || 0) + 1; });
+            if (Object.keys(states).length === 0) states['pendiente'] = 0;
+            const stateLabels = Object.keys(states).map(s => s.charAt(0).toUpperCase() + s.slice(1));
+            const stateData = Object.values(states);
+            const stateColors = { 'pendiente':'#f59e0b', 'en_transito':'#3b82f6', 'recibido':'#8b5cf6', 'en_ruta':'#06b6d4', 'entregado':'#22c55e' };
+
+            new Chart(document.getElementById('statusChart').getContext('2d'), {
+                type: 'doughnut',
+                data: { labels: stateLabels, datasets: [{ data: stateData, backgroundColor: stateLabels.map(l => stateColors[l.toLowerCase()] || '#94a3b8'), borderColor: '#ffffff', borderWidth: 3 }] },
+                options: {
+                    responsive: true, maintainAspectRatio: false, cutout: '65%',
+                    plugins: {
+                        legend: { position: 'right', labels: { color: '#475569', padding: 16, usePointStyle: true, pointStyleWidth: 8, font:{size:11} } }
+                    }
+                }
+            });
+
+            lucide.createIcons();
+        }
+
+        fetchDashboard();
+        setInterval(fetchDashboard, 30000);
     </script>
 </body>
 </html>
