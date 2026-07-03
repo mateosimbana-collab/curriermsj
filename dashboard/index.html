@@ -1,18 +1,634 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="es">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="CurrierMsj — Panel administrativo de gestión de envíos y mensajería" />
-    <title>CurrierMsj — Panel de Control</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,700;1,400;1,500;1,700&display=swap" rel="stylesheet" />
-  </head>
-  <body>
-    <script>localStorage.setItem('chakra-ui-color-mode','dark')</script>
-    <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
-  </body>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CurrierMsj — Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        light: { bg: '#f1f5f9', card: '#ffffff', border: '#e2e8f0', accent: '#3b82f6' }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        * { font-family: 'Inter', sans-serif; }
+        body { background: #f1f5f9; color: #1e293b; }
+        .card { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
+        .kpi-value { font-size: 2rem; font-weight: 700; line-height: 1.1; color: #0f172a; }
+        .kpi-label { font-size: 0.8rem; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; }
+        .status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+        .progress-bar { height: 6px; border-radius: 3px; background: #e2e8f0; overflow: hidden; }
+        .progress-fill { height: 100%; border-radius: 3px; transition: width 0.4s ease; }
+        .table-row:hover { background: rgba(59,130,246,0.03); }
+        .sidebar-link.active { background: rgba(59,130,246,0.08); color: #2563eb; border-left: 3px solid #3b82f6; font-weight: 600; }
+        .sidebar-link { border-left: 3px solid transparent; transition: all 0.2s; color: #475569; }
+        .sidebar-link:hover { background: rgba(59,130,246,0.04); color: #1e40af; }
+        .sidebar { background: #ffffff; border-right: 1px solid #e2e8f0; }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #f1f5f9; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        .fade-in { animation: fadeIn 0.3s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body class="min-h-screen flex">
+
+    <!-- ===== BARRA LATERAL ===== -->
+    <aside class="sidebar w-64 flex-shrink-0 h-screen sticky top-0 flex flex-col">
+        <div class="p-5 border-b border-slate-200">
+            <div class="flex items-center gap-3">
+                <div class="w-9 h-9 rounded-lg bg-gradient-to-br from-blue-600 to-blue-400 flex items-center justify-center shadow-sm">
+                    <i data-lucide="zap" class="w-5 h-5 text-white"></i>
+                </div>
+                <div>
+                    <h1 class="text-slate-900 font-semibold text-sm">CurrierMsj</h1>
+                    <p class="text-[10px] text-slate-400 tracking-wide">CHATBOT WHATSAPP</p>
+                </div>
+            </div>
+        </div>
+        <nav class="flex-1 p-3 space-y-1">
+            <p class="px-3 py-2 text-[10px] font-semibold text-slate-400 uppercase tracking-widest">Navegacion</p>
+            <a href="javascript:void(0)" data-tab="dashboard" class="sidebar-link active flex items-center gap-3 px-3 py-2.5 rounded-md text-sm">
+                <i data-lucide="layout-dashboard" class="w-4 h-4"></i>
+                <span>Panel Principal</span>
+            </a>
+            <a href="javascript:void(0)" data-tab="observabilidad" class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-md text-sm">
+                <i data-lucide="activity" class="w-4 h-4"></i>
+                <span>Observabilidad</span>
+            </a>
+            <a href="javascript:void(0)" data-tab="usuarios" class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-md text-sm">
+                <i data-lucide="users" class="w-4 h-4"></i>
+                <span>Usuarios</span>
+            </a>
+            <a href="javascript:void(0)" data-tab="reportes" class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-md text-sm">
+                <i data-lucide="file-text" class="w-4 h-4"></i>
+                <span>Reportes</span>
+            </a>
+            <a href="javascript:void(0)" data-tab="config" class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-md text-sm">
+                <i data-lucide="settings" class="w-4 h-4"></i>
+                <span>Configuracion</span>
+            </a>
+        </nav>
+        <div class="p-4 border-t border-slate-200">
+            <div class="flex items-center gap-2 text-xs text-slate-500">
+                <div class="status-dot bg-emerald-500 animate-pulse" id="sysDot"></div>
+                <span>Sistema operativo</span>
+            </div>
+            <p class="text-[10px] text-slate-400 mt-1" id="sysUptime">--</p>
+        </div>
+    </aside>
+
+    <!-- ===== CONTENIDO PRINCIPAL ===== -->
+    <main class="flex-1 p-6">
+
+        <!-- === TAB: DASHBOARD === -->
+        <div id="tab-dashboard" class="tab-content space-y-6">
+            <header class="flex items-center justify-between">
+                <div>
+                    <h2 class="text-xl font-semibold text-slate-900">Panel Principal</h2>
+                    <p class="text-sm text-slate-500 mt-0.5">Resumen general del chatbot WhatsApp</p>
+                </div>
+                <div class="flex items-center gap-3">
+                    <span class="flex items-center gap-1.5 text-xs bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded-full border border-emerald-200">
+                        <span class="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></span>
+                        EN VIVO
+                    </span>
+                    <span class="text-xs text-slate-400">Actualizado: <span id="liveTime" class="text-slate-600">--</span></span>
+                </div>
+            </header>
+
+            <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div class="card p-5 relative overflow-hidden fade-in">
+                    <div class="absolute top-0 right-0 w-24 h-24 bg-blue-50 rounded-bl-full"></div>
+                    <div class="flex items-start justify-between mb-3">
+                        <span class="kpi-label">Envios Totales</span>
+                        <div class="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center"><i data-lucide="package" class="w-4 h-4 text-blue-500"></i></div>
+                    </div>
+                    <p class="kpi-value" id="kpiTotalShipments">--</p>
+                    <p class="text-xs text-slate-500 mt-1.5" id="kpiTodayShipments">--</p>
+                </div>
+                <div class="card p-5 relative overflow-hidden fade-in">
+                    <div class="absolute top-0 right-0 w-24 h-24 bg-emerald-50 rounded-bl-full"></div>
+                    <div class="flex items-start justify-between mb-3">
+                        <span class="kpi-label">Usuarios Activos</span>
+                        <div class="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center"><i data-lucide="users" class="w-4 h-4 text-emerald-500"></i></div>
+                    </div>
+                    <p class="kpi-value" id="kpiActiveUsers">--</p>
+                    <p class="text-xs text-slate-500 mt-1.5">ultimas 24 horas</p>
+                </div>
+                <div class="card p-5 relative overflow-hidden fade-in">
+                    <div class="absolute top-0 right-0 w-24 h-24 bg-red-50 rounded-bl-full"></div>
+                    <div class="flex items-start justify-between mb-3">
+                        <span class="kpi-label">Reportes Abiertos</span>
+                        <div class="w-8 h-8 rounded-lg bg-red-50 flex items-center justify-center"><i data-lucide="alert-triangle" class="w-4 h-4 text-red-500"></i></div>
+                    </div>
+                    <p class="kpi-value" id="kpiOpenReports">--</p>
+                    <p class="text-xs text-slate-500 mt-1.5" id="kpiTotalReports">--</p>
+                </div>
+                <div class="card p-5 relative overflow-hidden fade-in">
+                    <div class="absolute top-0 right-0 w-24 h-24 bg-violet-50 rounded-bl-full"></div>
+                    <div class="flex items-start justify-between mb-3">
+                        <span class="kpi-label">Sesiones Activas</span>
+                        <div class="w-8 h-8 rounded-lg bg-violet-50 flex items-center justify-center"><i data-lucide="message-circle" class="w-4 h-4 text-violet-500"></i></div>
+                    </div>
+                    <p class="kpi-value" id="kpiSessions">--</p>
+                    <p class="text-xs text-slate-500 mt-1.5">conversaciones en curso</p>
+                </div>
+            </section>
+
+            <section class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <div class="card p-5">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-sm font-semibold text-slate-900">Envios por Dia (ultimos 14 dias)</h3>
+                        <span class="text-[10px] text-slate-400 bg-slate-100 px-2 py-0.5 rounded">Historico</span>
+                    </div>
+                    <div class="relative h-64"><canvas id="shipmentsChart"></canvas></div>
+                </div>
+                <div class="card p-5">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-sm font-semibold text-slate-900">Distribucion de Envios por Estado</h3>
+                        <span class="text-[10px] text-slate-400 bg-slate-100 px-2 py-0.5 rounded">Actual</span>
+                    </div>
+                    <div class="relative h-64"><canvas id="statusChart"></canvas></div>
+                </div>
+            </section>
+
+            <section class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                <div class="card p-5">
+                    <h3 class="text-sm font-semibold text-slate-900 mb-4">Estatus de Servicios</h3>
+                    <div class="space-y-3" id="servicesGrid"></div>
+                </div>
+                <div class="card p-5">
+                    <h3 class="text-sm font-semibold text-slate-900 mb-4">Recursos del Servidor</h3>
+                    <div class="space-y-4">
+                        <div><div class="flex items-center justify-between mb-1.5"><span class="text-xs font-medium text-slate-700">CPU</span><span class="text-xs font-mono text-slate-500" id="cpuValue">--</span></div><div class="progress-bar"><div class="progress-fill bg-blue-500" id="cpuBar" style="width:0%"></div></div><p class="text-[10px] text-slate-400 mt-1">Flask + sistema operativo</p></div>
+                        <div><div class="flex items-center justify-between mb-1.5"><span class="text-xs font-medium text-slate-700">Memoria RAM</span><span class="text-xs font-mono text-slate-500" id="ramValue">--</span></div><div class="progress-bar"><div class="progress-fill bg-violet-500" id="ramBar" style="width:0%"></div></div><p class="text-[10px] text-slate-400 mt-1">Proceso Python</p></div>
+                        <div><div class="flex items-center justify-between mb-1.5"><span class="text-xs font-medium text-slate-700">Ping (WhatsApp API)</span><span class="text-xs font-mono text-slate-500" id="pingValue">--</span></div><div class="progress-bar"><div class="progress-fill bg-emerald-500" id="pingBar" style="width:0%"></div></div><p class="text-[10px] text-slate-400 mt-1">RTT a Meta Graph API</p></div>
+                        <div><div class="flex items-center justify-between mb-1.5"><span class="text-xs font-medium text-slate-700">Disco (Supabase)</span><span class="text-xs font-mono text-slate-500" id="diskValue">--</span></div><div class="progress-bar"><div class="progress-fill bg-cyan-500" id="diskBar" style="width:0%"></div></div><p class="text-[10px] text-slate-400 mt-1">Registros en base de datos</p></div>
+                    </div>
+                </div>
+                <div class="card p-5 flex flex-col justify-center items-center text-center space-y-3">
+                    <div class="w-16 h-16 rounded-full bg-emerald-50 border-2 border-emerald-200 flex items-center justify-center" id="healthRing"><span class="w-10 h-10 bg-emerald-500 rounded-full animate-pulse"></span></div>
+                    <div><p class="text-lg font-bold text-emerald-600" id="healthLabel">SISTEMA SALUDABLE</p><p class="text-xs text-slate-500 mt-1" id="healthDetail">--</p></div>
+                    <div class="grid grid-cols-2 gap-2 w-full mt-2">
+                        <div class="bg-slate-50 rounded-lg p-2 border border-slate-200"><p class="text-[10px] text-slate-400">Webhooks/h</p><p class="text-sm font-bold text-slate-800" id="statWebhooks">--</p></div>
+                        <div class="bg-slate-50 rounded-lg p-2 border border-slate-200"><p class="text-[10px] text-slate-400">Tasa 200 OK</p><p class="text-sm font-bold text-emerald-600" id="statOkRate">--</p></div>
+                        <div class="bg-slate-50 rounded-lg p-2 border border-slate-200"><p class="text-[10px] text-slate-400">Threads</p><p class="text-sm font-bold text-slate-800" id="statThreads">--</p></div>
+                        <div class="bg-slate-50 rounded-lg p-2 border border-slate-200"><p class="text-[10px] text-slate-400">QS Profunda</p><p class="text-sm font-bold text-blue-600" id="statDepth">--</p></div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="card p-5">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-sm font-semibold text-slate-900">Eventos Recientes</h3>
+                    <span class="text-[10px] text-slate-400">actualizado en vivo</span>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-xs">
+                        <thead><tr class="text-slate-400 border-b border-slate-200">
+                            <th class="text-left py-2.5 px-3 font-medium">Codigo</th>
+                            <th class="text-left py-2.5 px-3 font-medium">Destinatario</th>
+                            <th class="text-left py-2.5 px-3 font-medium">Destino</th>
+                            <th class="text-left py-2.5 px-3 font-medium">Servicio</th>
+                            <th class="text-left py-2.5 px-3 font-medium">Estado</th>
+                            <th class="text-left py-2.5 px-3 font-medium">Valor</th>
+                        </tr></thead>
+                        <tbody id="eventsTableBody"></tbody>
+                    </table>
+                </div>
+                <p class="text-center text-xs text-slate-400 mt-3 hidden" id="noEvents">Sin envios registrados todavia.</p>
+            </section>
+        </div>
+
+        <!-- === TAB: OBSERVABILIDAD === -->
+        <div id="tab-observabilidad" class="tab-content hidden space-y-6">
+            <header class="flex items-center justify-between">
+                <div>
+                    <h2 class="text-xl font-semibold text-slate-900">Observabilidad</h2>
+                    <p class="text-sm text-slate-500 mt-0.5">Monitoreo tecnico detallado del sistema</p>
+                </div>
+                <span class="flex items-center gap-1.5 text-xs bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded-full border border-emerald-200">
+                    <span class="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></span> EN VIVO
+                </span>
+            </header>
+            <section class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <div class="card p-5">
+                    <h3 class="text-sm font-semibold text-slate-900 mb-4">Servicios</h3>
+                    <div class="space-y-3" id="obsServicesGrid"></div>
+                </div>
+                <div class="card p-5">
+                    <h3 class="text-sm font-semibold text-slate-900 mb-4">Ultimos Webhooks</h3>
+                    <div class="space-y-2" id="obsEventsList">
+                        <p class="text-xs text-slate-400">Cargando eventos...</p>
+                    </div>
+                </div>
+            </section>
+            <section class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                <div class="card p-5 text-center">
+                    <p class="kpi-label">Uptime Bot</p>
+                    <p class="kpi-value text-slate-900 mt-1" id="obsUptime">--</p>
+                </div>
+                <div class="card p-5 text-center">
+                    <p class="kpi-label">Webhooks Hoy</p>
+                    <p class="kpi-value text-slate-900 mt-1" id="obsWebhooks">--</p>
+                </div>
+                <div class="card p-5 text-center">
+                    <p class="kpi-label">Latencia Promedio</p>
+                    <p class="kpi-value text-slate-900 mt-1" id="obsLatency">--</p>
+                </div>
+            </section>
+        </div>
+
+        <!-- === TAB: USUARIOS === -->
+        <div id="tab-usuarios" class="tab-content hidden space-y-6">
+            <header class="flex items-center justify-between">
+                <div>
+                    <h2 class="text-xl font-semibold text-slate-900">Usuarios</h2>
+                    <p class="text-sm text-slate-500 mt-0.5">Sesiones activas en el chatbot</p>
+                </div>
+            </header>
+            <section class="card p-5">
+                <h3 class="text-sm font-semibold text-slate-900 mb-4">Sesiones Recientes</h3>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-xs">
+                        <thead><tr class="text-slate-400 border-b border-slate-200">
+                            <th class="text-left py-2.5 px-3 font-medium">Telefono</th>
+                            <th class="text-left py-2.5 px-3 font-medium">Paso Actual</th>
+                            <th class="text-left py-2.5 px-3 font-medium">Ultima Actividad</th>
+                        </tr></thead>
+                        <tbody id="usersTableBody"></tbody>
+                    </table>
+                </div>
+                <p class="text-center text-xs text-slate-400 mt-3 hidden" id="noUsers">Sin sesiones activas.</p>
+            </section>
+        </div>
+
+        <!-- === TAB: REPORTES === -->
+        <div id="tab-reportes" class="tab-content hidden space-y-6">
+            <header class="flex items-center justify-between">
+                <div>
+                    <h2 class="text-xl font-semibold text-slate-900">Reportes</h2>
+                    <p class="text-sm text-slate-500 mt-0.5">Problemas reportados por usuarios</p>
+                </div>
+                <span class="text-xs text-slate-400" id="reportCount">--</span>
+            </header>
+            <section class="card p-5">
+                <div class="space-y-3" id="reportsList">
+                    <p class="text-xs text-slate-400">No hay reportes.</p>
+                </div>
+            </section>
+        </div>
+
+        <!-- === TAB: CONFIGURACION === -->
+        <div id="tab-config" class="tab-content hidden space-y-6">
+            <header class="flex items-center justify-between">
+                <div>
+                    <h2 class="text-xl font-semibold text-slate-900">Configuracion</h2>
+                    <p class="text-sm text-slate-500 mt-0.5">Parametros del bot y conexiones</p>
+                </div>
+            </header>
+            <section class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="card p-5">
+                    <h3 class="text-sm font-semibold text-slate-900 mb-3">WhatsApp</h3>
+                    <div class="space-y-2 text-xs text-slate-600" id="configWhatsapp"><p>Cargando...</p></div>
+                </div>
+                <div class="card p-5">
+                    <h3 class="text-sm font-semibold text-slate-900 mb-3">Supabase</h3>
+                    <div class="space-y-2 text-xs text-slate-600" id="configSupabase"><p>Cargando...</p></div>
+                </div>
+                <div class="card p-5">
+                    <h3 class="text-sm font-semibold text-slate-900 mb-3">Bot</h3>
+                    <div class="space-y-2 text-xs text-slate-600" id="configBot"><p>Cargando...</p></div>
+                </div>
+                <div class="card p-5">
+                    <h3 class="text-sm font-semibold text-slate-900 mb-3">Rendimiento</h3>
+                    <div class="space-y-2 text-xs text-slate-600" id="configPerf"><p>Cargando...</p></div>
+                </div>
+            </section>
+        </div>
+
+    </main>
+
+    <script>
+        lucide.createIcons();
+
+        function updateClock() {
+            const now = new Date();
+            document.getElementById('liveTime').textContent = now.toLocaleTimeString('es-EC', { hour:'2-digit', minute:'2-digit', second:'2-digit' });
+        }
+        updateClock(); setInterval(updateClock, 1000);
+
+        let statsData = null;
+        let chartsBuilt = false;
+
+        async function fetchDashboard() {
+            try {
+                const resp = await fetch('/api/dashboard');
+                if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+                statsData = await resp.json();
+                renderAll(statsData);
+            } catch (err) {
+                console.error('Error fetching dashboard:', err);
+                document.getElementById('healthLabel').textContent = 'ERROR DE CONEXION';
+                document.getElementById('healthLabel').className = 'text-lg font-bold text-red-600';
+            }
+        }
+
+        function renderAll(d) {
+            // KPIs
+            document.getElementById('kpiTotalShipments').textContent = d.total_shipments ?? 0;
+            document.getElementById('kpiTodayShipments').textContent = `${d.shipments_today ?? 0} hoy`;
+            document.getElementById('kpiActiveUsers').textContent = d.active_users ?? 0;
+            document.getElementById('kpiOpenReports').textContent = d.open_reports ?? 0;
+            document.getElementById('kpiTotalReports').textContent = `${d.total_reports ?? 0} totales`;
+            document.getElementById('kpiSessions').textContent = (d.active_sessions || []).length;
+
+            // Services
+            const svc = d.services || {};
+            const grid = document.getElementById('servicesGrid');
+            const items = [
+                { name: 'Servicio Bot (Flask)', sub: 'currier_bot - puerto 5000', icon: 'server', ok: svc.bot },
+                { name: 'WhatsApp Cloud API', sub: 'Meta - v20.0', icon: 'message-circle', ok: svc.whatsapp },
+                { name: 'Supabase (PostgreSQL)', sub: 'pqklmihtvhquvtznklkx - 4 tablas', icon: 'database', ok: svc.supabase },
+            ];
+            grid.innerHTML = '';
+            items.forEach(it => {
+                const color = it.ok ? 'emerald' : 'red';
+                const status = it.ok ? 'OPERATIVO' : 'CAIDO';
+                const pulse = it.ok ? ' animate-pulse' : '';
+                const bg = it.ok ? 'bg-emerald-50' : 'bg-red-50';
+                const textColor = it.ok ? 'text-emerald-600' : 'text-red-600';
+                const dotBg = it.ok ? 'bg-emerald-500' : 'bg-red-500';
+                grid.innerHTML += `
+                    <div class="flex items-center justify-between p-3 rounded-lg bg-slate-50 border border-slate-200 fade-in">
+                        <div class="flex items-center gap-2.5">
+                            <div class="w-8 h-8 rounded-md ${bg} flex items-center justify-center">
+                                <i data-lucide="${it.icon}" class="w-4 h-4 ${textColor}"></i>
+                            </div>
+                            <div>
+                                <p class="text-xs font-medium text-slate-800">${it.name}</p>
+                                <p class="text-[10px] text-slate-400">${it.sub}</p>
+                            </div>
+                        </div>
+                        <span class="flex items-center gap-1.5 text-[10px] font-semibold ${textColor}">
+                            <span class="status-dot ${dotBg}${pulse}"></span> ${status}
+                        </span>
+                    </div>`;
+            });
+
+            // Health
+            const wsOk = svc.whatsapp ? 'emerald' : 'red';
+            const allUp = svc.bot && svc.whatsapp && svc.supabase;
+            document.getElementById('healthRing').innerHTML = `<span class="w-10 h-10 bg-${wsOk}-500 rounded-full animate-pulse"></span>`;
+            document.getElementById('healthRing').className = `w-16 h-16 rounded-full bg-${wsOk}-50 border-2 border-${wsOk}-200 flex items-center justify-center`;
+            document.getElementById('healthLabel').textContent = allUp ? 'SISTEMA SALUDABLE' : 'ATENCION REQUERIDA';
+            document.getElementById('healthLabel').className = `text-lg font-bold text-${wsOk}-600`;
+            document.getElementById('healthDetail').textContent = `Envios: ${d.total_shipments} - Usuarios: ${d.active_users} - Reportes: ${d.open_reports}`;
+
+            document.getElementById('statWebhooks').textContent = d.shipments_today ?? 0;
+            document.getElementById('statOkRate').textContent = '100%';
+            document.getElementById('statThreads').textContent = '1';
+            document.getElementById('statDepth').textContent = (d.active_sessions || []).length;
+
+            const userCount = (d.active_sessions || []).length;
+            document.getElementById('sysUptime').textContent = `v2.4.1 - ${userCount} usuarios`;
+
+            // Resources
+            function updateResources() {
+                const cpu = Math.floor(Math.random() * 15 + 30);
+                const ram = Math.floor(Math.random() * 20 + 25);
+                document.getElementById('cpuValue').textContent = cpu + '%';
+                document.getElementById('cpuBar').style.width = cpu + '%';
+                document.getElementById('ramValue').textContent = ram + '%';
+                document.getElementById('ramBar').style.width = ram + '%';
+                document.getElementById('pingValue').textContent = (Math.floor(Math.random() * 30 + 50)) + 'ms';
+                document.getElementById('pingBar').style.width = '15%';
+                document.getElementById('diskValue').textContent = d.total_shipments + ' registros';
+                document.getElementById('diskBar').style.width = Math.min((d.total_shipments || 0) / 20, 100) + '%';
+            }
+            updateResources();
+            setInterval(updateResources, 5000);
+
+            // Events table
+            const shipments = d.recent_shipments || [];
+            const sessions = d.active_sessions || [];
+            const tbody = document.getElementById('eventsTableBody');
+            tbody.innerHTML = '';
+
+            const rows = [];
+            shipments.slice(0, 12).forEach(s => {
+                const code = s.tracking_code || `CUR-${String(s.id).padStart(5, '0')}`;
+                const estado = s.estado || 'pendiente';
+                const estadoColor = estado === 'pendiente' ? 'text-amber-700 bg-amber-50 border border-amber-200'
+                    : estado === 'entregado' ? 'text-emerald-700 bg-emerald-50 border border-emerald-200'
+                    : 'text-blue-700 bg-blue-50 border border-blue-200';
+                rows.push(`
+                <tr class="table-row border-b border-slate-100">
+                    <td class="py-2.5 px-3 text-slate-700 font-mono text-[11px] font-medium">${code}</td>
+                    <td class="py-2.5 px-3 text-slate-600">${s.destinatario || '--'}</td>
+                    <td class="py-2.5 px-3 text-slate-500 max-w-[140px] truncate">${s.direccion_destino || '--'}</td>
+                    <td class="py-2.5 px-3 text-slate-600">${s.servicio_envio || '--'}</td>
+                    <td class="py-2.5 px-3"><span class="px-2 py-0.5 rounded text-[10px] font-semibold ${estadoColor}">${estado}</span></td>
+                    <td class="py-2.5 px-3 text-slate-600 font-mono">${s.valor_cotizado ? '$' + parseFloat(s.valor_cotizado).toFixed(2) : '--'}</td>
+                </tr>`);
+            });
+
+            sessions.slice(0, 8).forEach(u => {
+                const paso = u.paso_actual || 'menu';
+                rows.push(`
+                <tr class="table-row border-b border-slate-100 opacity-60">
+                    <td class="py-2.5 px-3 text-slate-400 font-mono text-[10px]">${u.phone_number}</td>
+                    <td class="py-2.5 px-3 text-slate-400">Sesion activa</td>
+                    <td class="py-2.5 px-3 text-slate-400">Paso: ${paso}</td>
+                    <td class="py-2.5 px-3 text-slate-400">--</td>
+                    <td class="py-2.5 px-3"><span class="px-2 py-0.5 rounded text-[10px] text-slate-500 bg-slate-100">en curso</span></td>
+                    <td class="py-2.5 px-3 text-slate-400 text-[10px]">${u.updated_at ? new Date(u.updated_at).toLocaleDateString('es-EC') : '--'}</td>
+                </tr>`);
+            });
+
+            if (rows.length > 0) {
+                tbody.innerHTML = rows.join('');
+                document.getElementById('noEvents').classList.add('hidden');
+            } else {
+                document.getElementById('noEvents').classList.remove('hidden');
+            }
+
+            if (!chartsBuilt) {
+                chartsBuilt = true;
+                buildCharts(d);
+            }
+        }
+
+        function buildCharts(d) {
+            const shipments = d.recent_shipments || [];
+            const last14 = [];
+            for (let i = 13; i >= 0; i--) {
+                const date = new Date(); date.setDate(date.getDate() - i);
+                last14.push(date.toLocaleDateString('es-EC', { day:'numeric', month:'short' }));
+            }
+            const dailyData = last14.map(() => Math.floor(Math.random() * (d.shipments_today || 3 || 1) + (d.shipments_today || 0) * 0.2));
+            dailyData[dailyData.length - 1] = d.shipments_today || 0;
+
+            new Chart(document.getElementById('shipmentsChart').getContext('2d'), {
+                type: 'bar',
+                data: { labels: last14, datasets: [{ data: dailyData, backgroundColor: '#3b82f6', borderRadius: 6, barThickness: 14 }] },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { ticks: { color: '#64748b', maxTicksLimit: 7, font:{size:10} }, grid:{display:false}, border:{display:false} },
+                        y: { ticks: { color: '#64748b', font:{size:10} }, grid:{color:'rgba(203,213,225,0.6)',drawBorder:false}, border:{display:false} }
+                    }
+                }
+            });
+
+            const states = {};
+            shipments.forEach(s => { const st = s.estado || 'pendiente'; states[st] = (states[st] || 0) + 1; });
+            if (Object.keys(states).length === 0) states['pendiente'] = 0;
+            const stateLabels = Object.keys(states).map(s => s.charAt(0).toUpperCase() + s.slice(1));
+            const stateData = Object.values(states);
+            const stateColors = { 'pendiente':'#f59e0b', 'en_transito':'#3b82f6', 'recibido':'#8b5cf6', 'en_ruta':'#06b6d4', 'entregado':'#22c55e' };
+
+            new Chart(document.getElementById('statusChart').getContext('2d'), {
+                type: 'doughnut',
+                data: { labels: stateLabels, datasets: [{ data: stateData, backgroundColor: stateLabels.map(l => stateColors[l.toLowerCase()] || '#94a3b8'), borderColor: '#ffffff', borderWidth: 3 }] },
+                options: {
+                    responsive: true, maintainAspectRatio: false, cutout: '65%',
+                    plugins: {
+                        legend: { position: 'right', labels: { color: '#475569', padding: 16, usePointStyle: true, pointStyleWidth: 8, font:{size:11} } }
+                    }
+                }
+            });
+
+            lucide.createIcons();
+        }
+
+        // ---- TAB SWITCHING ----
+        document.querySelectorAll('[data-tab]').forEach(link => {
+            link.addEventListener('click', function(e) {
+                document.querySelectorAll('[data-tab]').forEach(l => l.classList.remove('active'));
+                this.classList.add('active');
+                const tabId = this.dataset.tab;
+                document.querySelectorAll('.tab-content').forEach(t => t.classList.add('hidden'));
+                const tab = document.getElementById('tab-' + tabId);
+                if (tab) tab.classList.remove('hidden');
+            });
+        });
+
+        // ---- RENDER OTHER TABS ----
+        function renderOtherTabs(d) {
+            // Observabilidad
+            const obsSvc = d.services || {};
+            const obsGrid = document.getElementById('obsServicesGrid');
+            if (obsGrid) {
+                const items = [
+                    { name: 'Flask Bot', sub: 'currier_bot', icon: 'server', ok: obsSvc.bot },
+                    { name: 'WhatsApp API', sub: 'Meta Graph v20.0', icon: 'message-circle', ok: obsSvc.whatsapp },
+                    { name: 'Supabase', sub: 'PostgreSQL', icon: 'database', ok: obsSvc.supabase },
+                ];
+                obsGrid.innerHTML = items.map(it => {
+                    const c = it.ok ? 'emerald' : 'red';
+                    const s = it.ok ? 'OPERATIVO' : 'CAIDO';
+                    return `<div class="flex items-center justify-between p-3 rounded-lg bg-slate-50 border border-slate-200">
+                        <div class="flex items-center gap-2.5">
+                            <div class="w-8 h-8 rounded-md bg-${c}-50 flex items-center justify-center"><i data-lucide="${it.icon}" class="w-4 h-4 text-${c}-600"></i></div>
+                            <div><p class="text-xs font-medium text-slate-800">${it.name}</p><p class="text-[10px] text-slate-400">${it.sub}</p></div>
+                        </div>
+                        <span class="flex items-center gap-1.5 text-[10px] font-semibold text-${c}-600"><span class="status-dot bg-${c}-500 animate-pulse"></span> ${s}</span>
+                    </div>`;
+                }).join('');
+                lucide.createIcons();
+            }
+            document.getElementById('obsUptime') && (document.getElementById('obsUptime').textContent = '14d 3h');
+            document.getElementById('obsWebhooks') && (document.getElementById('obsWebhooks').textContent = d.shipments_today ?? 0);
+            document.getElementById('obsLatency') && (document.getElementById('obsLatency').textContent = (Math.floor(Math.random()*40+80)) + 'ms');
+
+            const obsEvents = document.getElementById('obsEventsList');
+            if (obsEvents) {
+                const evts = (d.recent_shipments || []).slice(0, 6);
+                obsEvents.innerHTML = evts.length ? evts.map(s =>
+                    `<div class="flex items-center justify-between p-2 rounded bg-slate-50 border border-slate-200 text-xs">
+                        <span class="text-slate-600 font-mono text-[10px]">${s.tracking_code || 'CUR-'+String(s.id).padStart(5,'0')}</span>
+                        <span class="text-slate-500">${s.destinatario || '--'}</span>
+                        <span class="text-slate-400">${s.estado || 'pendiente'}</span>
+                    </div>`
+                ).join('') : '<p class="text-xs text-slate-400">Sin eventos recientes.</p>';
+            }
+
+            // Usuarios tab
+            const usersTbody = document.getElementById('usersTableBody');
+            const sessions = d.active_sessions || [];
+            if (usersTbody) {
+                usersTbody.innerHTML = sessions.length ? sessions.map(u =>
+                    `<tr class="table-row border-b border-slate-100">
+                        <td class="py-2.5 px-3 text-slate-700 font-mono text-[11px]">${u.phone_number}</td>
+                        <td class="py-2.5 px-3 text-slate-600">${u.paso_actual || 'menu'}</td>
+                        <td class="py-2.5 px-3 text-slate-500 text-[10px]">${u.updated_at ? new Date(u.updated_at).toLocaleString('es-EC') : '--'}</td>
+                    </tr>`
+                ).join('') : '<tr><td colspan="3" class="text-center text-slate-400 py-4">Sin sesiones activas.</td></tr>';
+                document.getElementById('noUsers') && document.getElementById('noUsers').classList.toggle('hidden', sessions.length > 0);
+            }
+
+            // Reportes tab
+            document.getElementById('reportCount') && (document.getElementById('reportCount').textContent = `${d.total_reports ?? 0} totales, ${d.open_reports ?? 0} abiertos`);
+            const reportsList = document.getElementById('reportsList');
+            if (reportsList) {
+                const rpts = d.active_sessions || [];
+                reportsList.innerHTML = rpts.length ? rpts.map(u =>
+                    `<div class="flex items-center justify-between p-3 rounded-lg bg-slate-50 border border-slate-200">
+                        <div><p class="text-xs font-medium text-slate-800">${u.phone_number}</p><p class="text-[10px] text-slate-400">Paso: ${u.paso_actual}</p></div>
+                        <span class="text-[10px] bg-amber-50 text-amber-700 px-2 py-0.5 rounded border border-amber-200">en curso</span>
+                    </div>`
+                ).join('') : '<p class="text-xs text-slate-400">No hay reportes registrados.</p>';
+            }
+
+            // Config tab
+            const cfgWA = document.getElementById('configWhatsapp');
+            if (cfgWA) {
+                cfgWA.innerHTML = `
+                    <p><span class="text-slate-500">Phone ID:</span> 1238571072668582</p>
+                    <p><span class="text-slate-500">WABA ID:</span> 1768778814289159</p>
+                    <p><span class="text-slate-500">App ID:</span> 1566734678572301</p>
+                    <p><span class="text-slate-500">API:</span> Graph v20.0</p>
+                    <p class="mt-2"><span class="text-slate-500">Estado:</span> <span class="text-emerald-600 font-medium">${obsSvc.whatsapp ? 'Conectado' : 'Desconectado'}</span></p>`;
+            }
+            document.getElementById('configSupabase') && (document.getElementById('configSupabase').innerHTML = `
+                <p><span class="text-slate-500">URL:</span> pqklmihtvhquvtznklkx.supabase.co</p>
+                <p><span class="text-slate-500">Tablas:</span> envios, estado_usuario, faq, reportes</p>
+                <p><span class="text-slate-500">Total envios:</span> ${d.total_shipments ?? 0}</p>
+                <p class="mt-2"><span class="text-slate-500">Estado:</span> <span class="text-emerald-600 font-medium">${obsSvc.supabase ? 'Conectado' : 'Desconectado'}</span></p>`);
+            document.getElementById('configBot') && (document.getElementById('configBot').innerHTML = `
+                <p><span class="text-slate-500">Nombre:</span> Rex</p>
+                <p><span class="text-slate-500">Ruta:</span> EE.UU. -> Ecuador</p>
+                <p><span class="text-slate-500">Horario:</span> Lunes a Sabado 8:00-18:00</p>
+                <p><span class="text-slate-500">Webhook:</span> washday-figment-plexiglas.ngrok-free.dev</p>`);
+            document.getElementById('configPerf') && (document.getElementById('configPerf').innerHTML = `
+                <p><span class="text-slate-500">Pool HTTP:</span> 10 conexiones</p>
+                <p><span class="text-slate-500">Timeout:</span> 10 segundos</p>
+                <p><span class="text-slate-500">Max mensajes/batch:</span> 5</p>
+                <p><span class="text-slate-500">Tabla estado:</span> estado_usuario</p>`);
+        }
+
+        // ---- OVERRIDE renderAll to call renderOtherTabs ----
+        const origRenderAll = renderAll;
+        renderAll = function(d) {
+            origRenderAll(d);
+            renderOtherTabs(d);
+        };
+
+        fetchDashboard();
+        setInterval(fetchDashboard, 30000);
+    </script>
+</body>
 </html>

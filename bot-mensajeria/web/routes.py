@@ -1,8 +1,9 @@
 import logging
+import os
 from datetime import datetime
 from typing import Any
 
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, send_from_directory
 
 import config
 from bot.courier_bot import CourierBot
@@ -111,13 +112,74 @@ def create_app(bot: CourierBot) -> Flask:
         if payload.get("object") != "whatsapp_business_account":
             return "Not Found", 404
 
+        if payload.get("entry", [{}])[0].get("changes", [{}])[0].get("value", {}).get("statuses"):
+            return "OK", 200
+
         try:
-            for event in WhatsAppWebhookParser.parse(payload):
-                bot.process(event)
+            events = WhatsAppWebhookParser.parse(payload)
+            logger.info("Webhook recibido: %d mensajes", len(events))
+            for event in events:
+                logger.info("Procesando mensaje de %s: %s", event.phone_number, event.text[:50])
+                try:
+                    bot.process(event)
+                except Exception as exc:
+                    logger.exception("Error procesando mensaje de %s: %s", event.phone_number, exc)
         except Exception as exc:
-            logger.exception("Error procesando webhook: %s", exc)
+            logger.exception("Error parseando webhook: %s", exc)
 
         return "OK", 200
+
+    @app.get("/api/dashboard")
+    def api_dashboard():
+        stats = bot.repository.get_dashboard_stats()
+
+        try:
+            import requests as _r
+            wa_resp = _r.get(
+                f"{config.WHATSAPP_API_URL}/{config.PHONE_NUMBER_ID}",
+                headers={"Authorization": f"Bearer {config.WHATSAPP_TOKEN}"},
+                timeout=5,
+            )
+            whatsapp_ok = 200 <= wa_resp.status_code < 300
+        except Exception:
+            whatsapp_ok = False
+
+        try:
+            import httpx as _hx
+            su_resp = _hx.get(
+                f"{config.SUPABASE_URL}/rest/v1/envios?select=id&limit=1",
+                headers={
+                    "apikey": config.SUPABASE_KEY,
+                    "Authorization": f"Bearer {config.SUPABASE_KEY}",
+                },
+                timeout=5,
+            )
+            supabase_ok = su_resp.status_code < 300
+        except Exception:
+            supabase_ok = False
+
+        return jsonify({
+            "status": "ok",
+            "service": "currier_bot",
+            "time": datetime.now().isoformat(),
+            "total_shipments": stats["total_shipments"],
+            "shipments_today": stats["shipments_today"],
+            "active_users": stats["active_users"],
+            "total_reports": stats["total_reports"],
+            "open_reports": stats["open_reports"],
+            "recent_shipments": stats["recent_shipments"],
+            "active_sessions": stats["active_sessions"],
+            "services": {
+                "bot": True,
+                "whatsapp": whatsapp_ok,
+                "supabase": supabase_ok,
+            },
+        }), 200
+
+    @app.get("/dashboard")
+    def dashboard():
+        dashboard_dir = os.path.join(os.path.dirname(__file__), "..", "..", "dashboard")
+        return send_from_directory(dashboard_dir, "index.html")
 
     @app.get("/health")
     def health():

@@ -99,13 +99,14 @@ class SupabaseRepository:
         self.update_user_state(phone_number, data=data)
 
     def search_faq(self, question: str) -> Optional[str]:
-        query = quote((question or "").strip(), safe="")
-        if not query:
+        raw = (question or "").strip()
+        if not raw:
             return None
 
+        query = quote(raw, safe="")
         url = (
             f"{self._table(self.table_faq)}"
-            f"?select=respuesta&pregunta=ilike.*{query}*&limit=1"
+            f"?select=respuesta&pregunta=ilike.%25{query}%25&limit=1"
         )
         data = self._request("GET", url)
         return data[0]["respuesta"] if data else None
@@ -157,7 +158,7 @@ class SupabaseRepository:
         )
         url = (
             f"{self._table(self.table_envios)}?select={columns}"
-            f"&telefono_remitente=eq.{quote(phone_number)}"
+            f"&phone_number=eq.{quote(phone_number)}"
             f"&order=creado_en.desc&limit={limit}"
         )
         return self._request("GET", url)
@@ -185,6 +186,51 @@ class SupabaseRepository:
         if tracking.isdigit():
             return self.get_shipment_by_id(int(tracking))
         return None
+
+    def get_dashboard_stats(self) -> dict[str, Any]:
+        now = datetime.utcnow()
+        today_iso = now.strftime("%Y-%m-%dT%H:%M:%S")
+
+        total_shipments = len(self._request("GET", f"{self._table(self.table_envios)}?select=id"))
+        shipments_today = len(self._request(
+            "GET",
+            f"{self._table(self.table_envios)}?select=id"
+            f"&creado_en=gte.{quote(today_iso)}&order=creado_en.desc&limit=500",
+        ))
+        active_users = len(self._request(
+            "GET",
+            f"{self._table(self.table_estado)}?select=phone_number"
+            f"&updated_at=gte.{quote(today_iso)}",
+        ))
+
+        total_reports = len(self._request("GET", f"{self._table(self.table_reportes)}?select=id"))
+        open_reports = len(self._request(
+            "GET",
+            f"{self._table(self.table_reportes)}?select=id&estado=eq.abierto",
+        ))
+
+        recent = self._request(
+            "GET",
+            f"{self._table(self.table_envios)}?select=id,tracking_code,remitente,destinatario"
+            f",direccion_destino,estado,servicio_envio,valor_cotizado,phone_number,creado_en"
+            f"&order=creado_en.desc&limit=30",
+        )
+
+        state_users = self._request(
+            "GET",
+            f"{self._table(self.table_estado)}?select=phone_number,paso_actual,updated_at"
+            f"&order=updated_at.desc&limit=15",
+        )
+
+        return {
+            "total_shipments": total_shipments,
+            "shipments_today": shipments_today,
+            "active_users": active_users,
+            "total_reports": total_reports,
+            "open_reports": open_reports,
+            "recent_shipments": recent,
+            "active_sessions": state_users,
+        }
 
     def extract_temp_data(self, state: Optional[dict[str, Any]]) -> dict[str, Any]:
         if not state or not state.get("datos_temp"):

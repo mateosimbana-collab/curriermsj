@@ -26,8 +26,11 @@ CREATE TABLE IF NOT EXISTS envios (
     hora_envio TEXT,
     instrucciones TEXT,
     chat_id INTEGER DEFAULT 0,
+    phone_number TEXT,
     creado_en TIMESTAMPTZ DEFAULT NOW()
 );
+
+ALTER TABLE envios ADD COLUMN IF NOT EXISTS phone_number TEXT;
 
 -- Compatibilidad si la tabla envios ya existia
 ALTER TABLE envios ADD COLUMN IF NOT EXISTS tracking_code TEXT;

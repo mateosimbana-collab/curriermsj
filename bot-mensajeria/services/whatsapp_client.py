@@ -110,6 +110,24 @@ class WhatsAppClient:
         }
         return self._post(payload, f"lista a {to}")
 
+    def send_location_request(
+        self,
+        to: str,
+        body_text: str,
+    ) -> bool:
+        payload = {
+            "messaging_product": "whatsapp",
+            "recipient_type": "individual",
+            "to": to,
+            "type": "interactive",
+            "interactive": {
+                "type": "location_request_message",
+                "body": {"text": body_text[:1024]},
+                "action": {"name": "send_location"},
+            },
+        }
+        return self._post(payload, f"location_request a {to}")
+
     def send_image(self, to: str, image_url: str, caption: str = "") -> bool:
         payload = {
             "messaging_product": "whatsapp",
@@ -137,10 +155,10 @@ class WhatsAppClient:
             )
             logger.info("WhatsApp %s: %s", description, response.status_code)
             if response.status_code >= 400:
-                logger.warning("Respuesta WhatsApp: %s", response.text[:500])
+                logger.warning("Error WhatsApp %s: %s", response.status_code, response.text[:500])
             return 200 <= response.status_code < 300
         except requests.RequestException as exc:
-            logger.exception("Error enviando %s: %s", description, exc)
+            logger.error("Error enviando %s: %s", description, exc)
             return False
 
     @staticmethod
