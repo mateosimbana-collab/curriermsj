@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 from datetime import datetime, timedelta, timezone
@@ -478,6 +479,27 @@ def create_app(bot: CourierBot) -> Flask:
                 for line in lines[-200:]:
                     logs.append(line.rstrip())
             return jsonify(logs[-100:]), 200
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+    @app.get("/api/test-results")
+    def get_test_results():
+        try:
+            results_path = os.path.join(os.path.dirname(__file__), "..", "test_results.json")
+            if os.path.exists(results_path):
+                with open(results_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                return jsonify(data), 200
+            tests_path = os.path.join(os.path.dirname(__file__), "..", "tests", "unit")
+            py_files = [f for f in os.listdir(tests_path) if f.endswith(".py") and f.startswith("test_")]
+            return jsonify({
+                "status": "no_results",
+                "summary": {
+                    "total": 0, "passed": 0, "failed": 0, "errors": 0,
+                },
+                "test_files": [f.replace(".py", "") for f in sorted(py_files)],
+                "message": "Ejecuta run_tests.bat para generar resultados",
+            }), 200
         except Exception as e:
             return jsonify({"error": str(e)}), 500
 

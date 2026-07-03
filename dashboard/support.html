@@ -26,6 +26,8 @@
 <a href="javascript:void(0)" data-tab="clientes" class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-md text-sm"><i data-lucide="contact" class="w-4 h-4"></i><span>Clientes</span></a>
 <a href="javascript:void(0)" data-tab="envios" class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-md text-sm"><i data-lucide="package" class="w-4 h-4"></i><span>Envíos</span></a>
 <a href="javascript:void(0)" data-tab="reportes" class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-md text-sm"><i data-lucide="file-text" class="w-4 h-4"></i><span>Reportes</span></a>
+<p class="px-3 py-2 text-[10px] font-semibold text-slate-500 uppercase tracking-widest mt-2">Calidad</p>
+<a href="javascript:void(0)" data-tab="pruebas" class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-md text-sm"><i data-lucide="check-square" class="w-4 h-4"></i><span>Pruebas</span></a>
 </nav>
 <div class="p-4 border-t border-slate-700"><div class="flex items-center gap-2 text-xs text-slate-400"><div class="status-dot bg-emerald-500 animate-pulse" id="sysDot"></div><span>Infraestructura</span></div><p class="text-[10px] text-slate-500 mt-1" id="sysUptime">--</p></div>
 </aside>
@@ -143,6 +145,18 @@
 <div id="tab-reportes" class="tab-content hidden space-y-6">
 <header class="flex items-center justify-between"><div><h2 class="text-xl font-semibold text-slate-100">Reportes e Incidencias</h2><p class="text-sm text-slate-400 mt-0.5">Problemas reportados</p></div><span class="text-xs text-slate-400" id="reportCount">--</span></header>
 <section class="card p-4"><div class="space-y-3" id="reportsList"><p class="text-xs text-slate-500">No hay reportes.</p></div></section>
+</div>
+
+<!-- ========== TAB: PRUEBAS ========== -->
+<div id="tab-pruebas" class="tab-content hidden space-y-6">
+<header class="flex items-center justify-between"><div><h2 class="text-xl font-semibold text-slate-100">Pruebas Unitarias</h2><p class="text-sm text-slate-400 mt-0.5">Resultados de tests automatizados</p></div>
+<div class="flex items-center gap-2"><span class="text-xs text-slate-500" id="testLastRun">--</span><button onclick="runTests()" class="text-xs bg-blue-600 hover:bg-blue-500 text-white px-3 py-1.5 rounded-lg transition-colors"><i data-lucide="play" class="w-3 h-3 inline mr-1"></i>Ejecutar</button></div></header>
+<section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3" id="testSummaryCards"></section>
+<section class="card p-4"><h3 class="text-sm font-semibold text-slate-200 mb-3">Resultados Detallados</h3><div class="overflow-x-auto"><table class="w-full text-xs"><thead><tr class="text-slate-400 border-b border-slate-700">
+<th class="text-left py-2 px-3 font-medium">Test</th><th class="text-left py-2 px-3 font-medium">Resultado</th><th class="text-left py-2 px-3 font-medium">Duración</th><th class="text-left py-2 px-3 font-medium">Mensaje</th>
+</tr></thead><tbody id="testResultsBody"></tbody></table></div>
+<p class="text-center text-xs text-slate-500 mt-3 hidden" id="noTests">Ejecuta las pruebas para ver resultados detallados.</p></section>
+<section class="card p-4"><h3 class="text-sm font-semibold text-slate-200 mb-3">Archivos de Test</h3><div id="testFilesList" class="flex flex-wrap gap-2"><p class="text-xs text-slate-500">--</p></div></section>
 </div>
 
 </main>
@@ -370,6 +384,59 @@ lucide.createIcons();
 fetchDashboard(); setInterval(fetchDashboard, 30000);
 fetchSystemStats(); setInterval(fetchSystemStats, 30000);
 fetchLogs(); if(logsInterval) clearInterval(logsInterval); logsInterval = setInterval(fetchLogs, 15000);
+fetchTestResults();
+async function fetchTestResults() {
+try {
+const r = await fetch('/api/test-results'); const data = await r.json();
+if(data.status==='no_results'){
+document.getElementById('testSummaryCards').innerHTML = '<div class="card p-4 col-span-full text-center text-slate-400">'+data.message+'</div>';
+document.getElementById('noTests').classList.remove('hidden');
+document.getElementById('testResultsBody').innerHTML = '';
+document.getElementById('testFilesList').innerHTML = (data.test_files||[]).map(f => '<span class="text-xs bg-slate-700 text-slate-300 px-2 py-1 rounded">'+f+'</span>').join('');
+return;
+}
+const summary = data.summary || data.created || {};
+const total = summary.total || 0;
+const passed = summary.passed || 0;
+const failed = summary.failed || data.failed || 0;
+const errors = summary.errors || data.errors || 0;
+const skipped = summary.skipped || 0;
+const duration = data.duration || summary.duration || 0;
+document.getElementById('testLastRun').textContent = 'Última ejecución: '+(data.created||'--');
+document.getElementById('testSummaryCards').innerHTML = [
+{label:'Total',val:total,color:'blue',icon:'check-square'},
+{label:'Pasadas',val:passed,color:'emerald',icon:'check-circle'},
+{label:'Fallidas',val:failed,color:'red',icon:'x-circle'},
+{label:'Errores',val:errors,color:'orange',icon:'alert-triangle'},
+{label:'Duración',val:(duration.toFixed(2)||'0')+'s',color:'violet',icon:'clock'},
+].map(c => '<div class="card p-3 text-center"><p class="kpi-label text-'+c.color+'-400">'+c.label+'</p><p class="kpi-value text-'+c.color+'-400 text-2xl">'+c.val+'</p></div>').join('');
+const tests = data.tests || data.collected || [];
+const tbody = document.getElementById('testResultsBody');
+if(tests.length){
+document.getElementById('noTests').classList.add('hidden');
+const call = data.test_calls || [];
+tbody.innerHTML = (call.length?call:tests).map(t => {
+const name = t.nodeid || t.name || t.heading || 'test';
+const outcome = t.outcome || t.passed===true?'passed':t.passed===false?'failed':'--';
+const dur = t.duration || t.call && t.call.duration || 0;
+const msg = t.longrepr || (t.call && t.call.longrepr) || '';
+const cls = outcome==='passed'?'text-emerald-400':outcome==='failed'?'text-red-400':'text-slate-400';
+return '<tr class="border-b border-slate-800"><td class="py-2 px-3 text-slate-300 font-mono text-[11px]">'+(name.length>60?name.slice(0,60)+'...':name)+'</td><td class="py-2 px-3"><span class="'+cls+'">'+(outcome==='passed'?'✅':outcome==='failed'?'❌':'➖')+' '+outcome+'</span></td><td class="py-2 px-3 text-slate-400">'+(dur?dur.toFixed(3)+'s':'--')+'</td><td class="py-2 px-3 text-slate-400 text-[10px] max-w-[200px] truncate">'+msg.substring(0,80)+'</td></tr>';
+}).join('');
+} else {document.getElementById('noTests').classList.remove('hidden');}
+const files = data.test_files || [];
+document.getElementById('testFilesList').innerHTML = files.length?files.map(f => '<span class="text-xs bg-slate-700 text-slate-300 px-2 py-1 rounded">'+f+'</span>').join(''):'<p class="text-xs text-slate-500">--</p>';
+} catch(err){}
+}
+async function runTests() {
+const btn = event.target.closest('button')||event.target;
+btn.disabled = true; btn.innerHTML = '<i data-lucide="loader" class="w-3 h-3 inline mr-1 animate-spin"></i>Ejecutando...'; lucide.createIcons();
+try {
+const r = await fetch('/api/test-results?run=1'); const data = await r.json();
+await fetchTestResults();
+} catch(err){}
+btn.disabled = false; btn.innerHTML = '<i data-lucide="play" class="w-3 h-3 inline mr-1"></i>Ejecutar'; lucide.createIcons();
+}
 </script>
 </body>
 </html>

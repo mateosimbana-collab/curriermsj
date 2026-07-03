@@ -8,7 +8,7 @@ load_dotenv()
 
 def _env_bool(name: str, default: bool = False) -> bool:
     value = os.getenv(name)
-    if value is None:
+    if value is None or value.strip() == "":
         return default
     return value.strip().lower() in {"1", "true", "yes", "on"}
 
