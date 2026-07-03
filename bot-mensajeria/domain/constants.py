@@ -2,6 +2,8 @@ class Step:
     MENU = "menu"
     WELCOME = "bienvenida"
     WELCOME_REGISTER = "bienvenida_registro"
+    WELCOME_APELLIDO = "bienvenida_apellido"
+    WELCOME_CIUDAD = "bienvenida_ciudad"
     WELCOME_PHONE = "bienvenida_telefono"
     TRACKING_CODE = "rastrear_codigo"
     QUOTE_ORIGIN = "cotizar_origen"
@@ -94,24 +96,6 @@ REPORT_CATEGORIES = {
     "rep_incompleto": "Contenido incompleto",
 }
 
-SHIPPING_SERVICES = {
-    "servicio_express": {
-        "label": "Express 24-48h",
-        "eta": "24 a 48 horas",
-        "icon": "Express",
-    },
-    "servicio_estandar": {
-        "label": "Estandar 3-5 dias",
-        "eta": "3 a 5 dias",
-        "icon": "Estandar",
-    },
-    "servicio_economico": {
-        "label": "Economico 5-8 dias",
-        "eta": "5 a 8 dias",
-        "icon": "Economico",
-    },
-}
-
 STATUS_STEPS = [
     ("pendiente", "Solicitud registrada"),
     ("recibido", "Paquete recibido"),
@@ -119,6 +103,42 @@ STATUS_STEPS = [
     ("en_ruta", "En ruta de entrega"),
     ("entregado", "Entregado"),
 ]
+
+BASE_QUOTES_USD = {
+    ("Documentos", "Menos de 1 kg"): 3.50,
+    ("Documentos", "1 - 5 kg"): 5.00,
+    ("Documentos", "Mas de 5 kg"): 8.00,
+    ("Paquete pequeno", "Menos de 1 kg"): 5.00,
+    ("Paquete pequeno", "1 - 5 kg"): 7.50,
+    ("Paquete pequeno", "Mas de 5 kg"): 12.00,
+    ("Paquete mediano", "Menos de 1 kg"): 7.00,
+    ("Paquete mediano", "1 - 5 kg"): 10.00,
+    ("Paquete mediano", "Mas de 5 kg"): 15.00,
+    ("Paquete grande", "Menos de 1 kg"): 10.00,
+    ("Paquete grande", "1 - 5 kg"): 15.00,
+    ("Paquete grande", "Mas de 5 kg"): 22.00,
+}
+
+SHIPPING_SERVICES = {
+    "servicio_express": {
+        "label": "Express 24-48h",
+        "multiplier": 2.00,
+        "eta": "24 a 48 horas",
+        "icon": "Express",
+    },
+    "servicio_estandar": {
+        "label": "Estandar 3-5 dias",
+        "multiplier": 1.45,
+        "eta": "3 a 5 dias",
+        "icon": "Estandar",
+    },
+    "servicio_economico": {
+        "label": "Economico 5-8 dias",
+        "multiplier": 1.00,
+        "eta": "5 a 8 dias",
+        "icon": "Economico",
+    },
+}
 
 
 def normalize_action(text: str) -> str:
