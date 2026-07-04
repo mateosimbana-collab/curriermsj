@@ -259,7 +259,8 @@ class TestHandleQuoteOrigin:
     def test_ubicacion_origen(self, bot, mock_repo, mock_whatsapp):
         event = IncomingMessage(phone_number="593991234567", text="ubicacion_origen", message_type="text")
         bot.handle_quote_origin(event, "ubicacion_origen", {})
-        mock_whatsapp.send_buttons.assert_called_once()
+        mock_whatsapp.send_text.assert_called_once()
+        mock_whatsapp.send_location_request.assert_called_once()
 
     def test_escribir_origen(self, bot, mock_repo, mock_whatsapp):
         event = IncomingMessage(phone_number="593991234567", text="escribir_origen", message_type="text")

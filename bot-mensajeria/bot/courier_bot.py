@@ -273,7 +273,8 @@ class CourierBot:
         data: dict[str, Any],
     ) -> None:
         if action == "ubicacion_origen":
-            self.whatsapp.send_buttons(event.phone_number, MessageTemplates.location_help(), Buttons.BACK)
+            self.whatsapp.send_text(event.phone_number, MessageTemplates.location_help())
+            self.whatsapp.send_location_request(event.phone_number, "Comparte tu ubicacion actual")
             return
 
         if action == "escribir_origen":
@@ -299,7 +300,8 @@ class CourierBot:
         data: dict[str, Any],
     ) -> None:
         if action == "ubicacion_destino":
-            self.whatsapp.send_buttons(event.phone_number, MessageTemplates.location_help(), Buttons.BACK)
+            self.whatsapp.send_text(event.phone_number, MessageTemplates.location_help())
+            self.whatsapp.send_location_request(event.phone_number, "Comparte la ubicacion de destino")
             return
 
         if action == "escribir_destino":

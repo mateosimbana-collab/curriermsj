@@ -393,7 +393,12 @@ class MessageTemplates:
 
     @staticmethod
     def location_help() -> str:
-        return "*ENVIAR UBICACION*\n" f"{LINE}\n" "Toca adjuntar en WhatsApp y elige Ubicacion."
+        return (
+            "*ENVIAR UBICACION*\n"
+            f"{LINE}\n"
+            "Toca el boton de abajo para compartir tu ubicacion actual.\n\n"
+            "O puedes enviarme un link de Google Maps o Apple Maps con la direccion."
+        )
 
     @staticmethod
     def unknown() -> str:

@@ -336,7 +336,8 @@ class TestMessageTemplates:
     def test_location_help(self):
         text = MessageTemplates.location_help()
         assert "UBICACION" in text
-        assert "WhatsApp" in text
+        assert "Google Maps" in text
+        assert "Apple Maps" in text
 
     def test_unknown_message(self):
         text = MessageTemplates.unknown()
