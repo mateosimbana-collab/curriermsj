@@ -1,0 +1,846 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CurrierMsj — Sistema Courier</title>
+    <script>
+        // appState must be defined BEFORE Alpine loads
+        function appState() { return {
+            auth: { token: localStorage.getItem('cm_token') || '', email: '', password: '', error: '', loading: false },
+            tab: 'dashboard', clock: '', stats: {}, chartsBuilt: false,
+            sidebarItems: [
+                { id:'dashboard', label:'Dashboard', icon:'layout-dashboard', desc:'Panel principal' },
+                { id:'clientes', label:'Clientes', icon:'users', desc:'Gestion de clientes' },
+                { id:'paquetes', label:'Paquetes', icon:'package', desc:'Gestion de paquetes' },
+                { id:'operaciones', label:'Operaciones', icon:'clipboard-list', desc:'Gestion diaria de envios' },
+                { id:'tracking', label:'Tracking', icon:'search', desc:'Consultar estado de paquetes' },
+                { id:'reportes', label:'Reportes', icon:'file-text', desc:'Exportar reportes' },
+                { id:'config', label:'Configuracion', icon:'settings', desc:'Parametros del sistema' },
+            ],
+            get currentTab(){return this.sidebarItems.find(i=>i.id===this.tab)||this.sidebarItems[0]},
+            clientes:{items:[],page:1,totalPages:1,filtro:''},
+            paquetes:{items:[],page:1,totalPages:1,filtro:''},
+            tracking:{code:'',result:null,events:[],error:''},
+            opsView:'kanban', opsPaquetes:[], opsKanban:{}, opsEtiquetas:[],
+            opsForm:{cliente_id:'',tracking:'',remitente:'',remitente_pais:'Estados Unidos',destinatario:'',destino:'',contenido:'',peso:'',valor:'',saving:false},
+            modals:{
+                cliente:{open:false,editId:null,cedula:'',nombre:'',telefono:'',email:'',ciudad:'Guayaquil',direccion:'',tipo:'regular',notas:''},
+                paquete:{open:false,cliente_id:'',remitente:'',pais:'Estados Unidos',destinatario:'',destino:'',contenido:'',peso:0.01},
+                estado:{open:false,paquete:null,etiqueta:'Recibido en USA',descripcion:'',ubicacion:''},
+                detalle:{open:false,item:null,tracking:[]},
+                avanzar:{open:false,item:null,etiqueta:'',descripcion:'',ubicacion:'',saving:false},
+            },
+            init(){document.getElementById('app-loader')?.remove();this.updateClock();setInterval(()=>this.updateClock(),1000);if(this.auth.token){this.loadDashboard();setInterval(()=>this.loadDashboard(),30000)}},
+            updateClock(){this.clock=new Date().toLocaleTimeString('es-EC',{hour:'2-digit',minute:'2-digit',second:'2-digit'})},
+            async doLogin(){this.auth.error='';this.auth.loading=true;try{const r=await fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:this.auth.email,password:this.auth.password})});const d=await r.json();if(d.data?.token){this.auth.token=d.data.token;localStorage.setItem('cm_token',d.data.token);this.loadDashboard()}else{this.auth.error=d.error||'Credenciales invalidas'}}catch(e){this.auth.error='Error de conexion'}finally{this.auth.loading=false}},
+            doLogout(){this.auth.token='';localStorage.removeItem('cm_token');this.stats={};this.chartsBuilt=!1;this.clientes.items=[];this.paquetes.items=[]},
+            async loadDashboard(){try{const r=await fetch('/api/dashboard');const d=await r.json();if(d.data)this.stats=d.data;this.$nextTick(()=>{this.buildChart();lucide.createIcons()})}catch(e){console.error('Dashboard error:',e)}},
+            buildChart(){if(!this.chartsBuilt&&document.getElementById('statusChart')){try{this.chartsBuilt=!0;const e=this.stats.paquetes_por_estado||[];const t=document.getElementById('statusChart').getContext('2d');new Chart(t,{type:'doughnut',data:{labels:e.map(r=>r.etiqueta_actual||r.estado_actual),datasets:[{data:e.map(r=>r.count),backgroundColor:['#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#ec4899']}]},options:{cutout:'65%',plugins:{legend:{display:!1,position:'bottom'}}}})}catch(e){console.error('Chart error:',e)}}},
+            setTab(id){this.tab=id;if(id==='clientes'&&!this.clientes.items.length)this.loadClientes();if(id==='paquetes'&&!this.paquetes.items.length)this.loadPaquetes();if(id==='dashboard')this.loadDashboard();if(id==='operaciones')this.loadOperaciones();this.$nextTick(()=>lucide.createIcons())},
+            formatDate(d){if(!d)return'--';try{return new Date(d).toLocaleString('es-EC',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})}catch(e){return d}},
+            estadoBadge(est){const e=(est||'').toLowerCase();if(e.includes('entreg')||e==='entregado')return'bg-emerald-100 text-emerald-700';if(e.includes('transito')||e.includes('ruta'))return'bg-blue-100 text-blue-700';if(e.includes('aduana'))return'bg-violet-100 text-violet-700';if(e.includes('destino'))return'bg-cyan-100 text-cyan-700';if(e.includes('devuel')||e.includes('reten'))return'bg-red-100 text-red-700';if(e.includes('recibido'))return'bg-amber-100 text-amber-700';return'bg-slate-100 text-slate-600'},
+            tipoClienteBadge(t){if(t==='mayorista')return'bg-violet-100 text-violet-700';if(t==='grupo')return'bg-blue-100 text-blue-700';return'bg-slate-100 text-slate-600'},
+            async loadClientes(){try{const filtros=new URLSearchParams({page:this.clientes.page,per_page:20});if(this.clientes.filtro)filtros.set('busqueda',this.clientes.filtro);const r=await fetch('/api/clientes?'+filtros.toString());const d=await r.json();if(d.data){this.clientes.items=d.data.data||d.data;this.clientes.totalPages=Math.ceil(d.data.total/d.data.per_page)||1}this.$nextTick(()=>lucide.createIcons())}catch(e){console.error(e)}},
+            async saveCliente(){const m=this.modals.cliente;if(!m.nombre||!m.cedula)return;try{const url=m.editId?'/api/clientes/'+m.editId:'/api/clientes';const r=await fetch(url,{method:m.editId?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({nombre_completo:m.nombre,cedula:m.cedula,telefono:m.telefono,email:m.email,ciudad:m.ciudad,direccion:m.direccion,tipo:m.tipo,notas:m.notas})});const d=await r.json();if(d.data){m.open=!1;this.clientes={items:[],page:1,totalPages:1,filtro:this.clientes.filtro};this.loadClientes()}else alert(d.error||'Error')}catch(e){alert('Error de conexion')}},
+            async deleteCliente(id){if(!confirm('Eliminar este cliente?'))return;try{await fetch('/api/clientes/'+id,{method:'DELETE'});this.clientes={items:[],page:1,totalPages:1,filtro:this.clientes.filtro};this.loadClientes()}catch(e){alert('Error')}},
+            nextPage(s){this[s].page++;this['load'+s.charAt(0).toUpperCase()+s.slice(1)]()},
+            prevPage(s){this[s].page=Math.max(1,this[s].page-1);this['load'+s.charAt(0).toUpperCase()+s.slice(1)]()},
+            async loadPaquetes(){try{const filtros=new URLSearchParams({page:this.paquetes.page,per_page:20});if(this.paquetes.filtro)filtros.set('busqueda',this.paquetes.filtro);const r=await fetch('/api/paquetes?'+filtros.toString());const d=await r.json();if(d.data){this.paquetes.items=d.data.data||d.data;this.paquetes.totalPages=Math.ceil(d.data.total/d.data.per_page)||1}this.$nextTick(()=>lucide.createIcons())}catch(e){console.error(e)}},
+            async savePaquete(){const m=this.modals.paquete;if(!m.cliente_id||!m.remitente||!m.destinatario||!m.destino)return;try{const r=await fetch('/api/paquetes',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({cliente_id:parseInt(m.cliente_id),remitente_nombre:m.remitente,remitente_pais:m.pais,destinatario_nombre:m.destinatario,destinatario_direccion:m.destino,contenido:m.contenido,peso_kg:parseFloat(m.peso)||null})});const d=await r.json();if(d.data){m.open=!1;this.paquetes={items:[],page:1,totalPages:1,filtro:this.paquetes.filtro};this.loadPaquetes();alert('Paquete registrado: '+d.data.tracking_code)}else alert(d.error||'Error')}catch(e){alert('Error de conexion')}},
+            async updateEstado(){const m=this.modals.estado;if(!m.etiqueta||!m.paquete)return;try{const r=await fetch('/api/paquetes/'+m.paquete.id+'/estado',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({etiqueta:m.etiqueta,descripcion:m.descripcion,ubicacion:m.ubicacion})});const d=await r.json();if(d.data){m.open=!1;this.loadPaquetes()}else alert(d.error||'Error')}catch(e){alert('Error de conexion')}},
+            async searchTracking(){this.tracking.result=null;this.tracking.events=[];this.tracking.error='';if(!this.tracking.code)return;try{const r=await fetch('/api/paquetes/buscar?tracking='+encodeURIComponent(this.tracking.code));const d=await r.json();if(d.data){this.tracking.result=d.data;const r2=await fetch('/api/paquetes/'+d.data.id+'/tracking');const d2=await r2.json();this.tracking.events=d2.data||[]}else this.tracking.error=d.error||'No encontrado'}catch(e){this.tracking.error='Error de conexion'}},
+            openClienteModal(){const m=this.modals.cliente;m.open=!0;m.editId=null;m.cedula='';m.nombre='';m.telefono='';m.email='';m.ciudad='Guayaquil';m.direccion='';m.tipo='regular';m.notas=''},
+            editCliente(c){const m=this.modals.cliente;m.open=!0;m.editId=c.id;m.cedula=c.cedula||'';m.nombre=c.nombre_completo||'';m.telefono=c.telefono||'';m.email=c.email||'';m.ciudad=c.ciudad||'Guayaquil';m.direccion=c.direccion||'';m.tipo=c.tipo_cliente||'regular';m.notas=c.notas||''},
+            openPaqueteModal(){const m=this.modals.paquete;m.open=!0;m.cliente_id='';m.remitente='';m.pais='Estados Unidos';m.destinatario='';m.destino='';m.contenido='';m.peso=0.01},
+            openTrackingModal(p){this.modals.estado.paquete=p;this.modals.estado.etiqueta='';this.modals.estado.descripcion='';this.modals.estado.ubicacion='';this.modals.estado.open=!0},
+            editPaqueteEstado(p){this.modals.estado.paquete=p;this.modals.estado.etiqueta=p.estado_actual||'Recibido en USA';this.modals.estado.descripcion='';this.modals.estado.ubicacion='';this.modals.estado.open=!0},
+            async loadOperaciones(){try{this.opsView='kanban';const[pr,er,cl]=await Promise.all([fetch('/api/paquetes?per_page=500').then(r=>r.json()),fetch('/api/etiquetas').then(r=>r.json()),fetch('/api/clientes?per_page=500').then(r=>r.json())]);this.opsPaquetes=(pr?.data?.data||pr?.data||[]);this.opsEtiquetas=(er?.data||[]);if(!this.clientes.items.length&&cl?.data?.data)this.clientes.items=cl.data.data;const grupos={},colors={recibido_en_usa:'#f59e0b',en_transito:'#3b82f6',en_aduana:'#8b5cf6',en_destino:'#06b6d4',en_ruta_de_entrega:'#2563eb',entregado:'#10b981',devuelto:'#ef4444',retenido:'#dc2626'},orden=['recibido_en_usa','en_transito','en_aduana','en_destino','en_ruta_de_entrega','entregado','devuelto','retenido'];for(const k of orden)grupos[k]={color:colors[k]||'#94a3b8',items:[]};for(const p of this.opsPaquetes){const est=(p.estado_actual||'recibido_en_usa').toLowerCase().replace(/ /g,'_');if(grupos[est])grupos[est].items.push(p);else grupos.recibido_en_usa.items.push(p)}this.opsKanban=grupos;this.$nextTick(()=>lucide.createIcons())}catch(e){console.error('Error loading operaciones:',e);this.opsPaquetes=[]}},
+            async opsVerDetalle(p){this.modals.detalle.item=p;this.modals.detalle.tracking=[];this.modals.detalle.open=!0;try{const r=await fetch('/api/paquetes/'+p.id+'/tracking');const d=await r.json();this.modals.detalle.tracking=(d?.data||[]);this.$nextTick(()=>lucide.createIcons())}catch(e){console.error(e)}},
+            opsAvanzar(p){this.modals.avanzar.item=p;this.modals.avanzar.etiqueta='';this.modals.avanzar.descripcion='';this.modals.avanzar.ubicacion='';this.modals.avanzar.saving=!1;this.modals.avanzar.open=!0},
+            async opsConfirmarAvance(){if(!this.modals.avanzar.etiqueta){alert('Seleccione un estado');return}this.modals.avanzar.saving=!0;try{const r=await fetch('/api/paquetes/'+this.modals.avanzar.item.id+'/estado',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({etiqueta:this.modals.avanzar.etiqueta,descripcion:this.modals.avanzar.descripcion,ubicacion:this.modals.avanzar.ubicacion})});const d=await r.json();this.modals.avanzar.open=!1;this.loadOperaciones()}catch(e){console.error(e);alert('Error al actualizar estado')}finally{this.modals.avanzar.saving=!1}},
+            async opsRegistrarEnvio(){const f=this.opsForm;if(!f.cliente_id||!f.remitente||!f.destinatario||!f.destino){alert('Complete los campos obligatorios');return}f.saving=!0;try{const r=await fetch('/api/paquetes',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({cliente_id:parseInt(f.cliente_id),remitente_nombre:f.remitente,remitente_pais:f.remitente_pais,destinatario_nombre:f.destinatario,destinatario_direccion:f.destino,contenido:f.contenido,peso_kg:f.peso?parseFloat(f.peso):null,valor_declarado:f.valor?parseFloat(f.valor):null})});const d=await r.json();if(d.data){this.opsView='lista';this.opsForm={cliente_id:'',tracking:'',remitente:'',remitente_pais:'Estados Unidos',destinatario:'',destino:'',contenido:'',peso:'',valor:'',saving:!1};this.loadOperaciones()}else alert(d.error||'Error al registrar')}catch(e){console.error(e);alert('Error al registrar envio')}finally{f.saving=!1}},
+        }}
+    </script>
+    <script src="/lib/alpine.min.js"></script>
+    <script src="/lib/tailwind.min.js" defer></script>
+    <script src="https://unpkg.com/lucide@latest" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js" defer></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: { 50:'#eff6ff',100:'#dbeafe',200:'#bfdbfe',300:'#93c5fd',400:'#60a5fa',500:'#3b82f6',600:'#2563eb',700:'#1d4ed8',800:'#1e40af',900:'#1e3a8a' }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        * { font-family: 'Inter', sans-serif; }
+        body { background: #f1f5f9; color: #1e293b; overflow: hidden; }
+        .card { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
+        .kpi-value { font-size: 2rem; font-weight: 700; line-height: 1.1; color: #0f172a; }
+        .kpi-label { font-size: 0.75rem; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; }
+        .status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+        .sidebar { background: #ffffff; border-right: 1px solid #e2e8f0; }
+        .sidebar-link { border-left: 3px solid transparent; transition: all 0.2s; color: #475569; cursor: pointer; }
+        .sidebar-link:hover { background: rgba(59,130,246,0.04); color: #1e40af; }
+        .sidebar-link.active { background: rgba(59,130,246,0.08); color: #2563eb; border-left: 3px solid #3b82f6; font-weight: 600; }
+        .table-row:hover { background: rgba(59,130,246,0.03); }
+        .progress-bar { height: 6px; border-radius: 3px; background: #e2e8f0; overflow: hidden; }
+        .progress-fill { height: 100%; border-radius: 3px; transition: width 0.4s ease; }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #f1f5f9; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        .fade-in { animation: fadeIn 0.3s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+        .toast { animation: slideIn 0.3s ease-out; }
+        @keyframes slideIn { from { opacity: 0; transform: translateX(100px); } to { opacity: 1; transform: translateX(0); } }
+        .modal-overlay { background: rgba(15,23,42,0.5); backdrop-filter: blur(2px); }
+        .input-field { width: 100%; padding: 0.5rem 0.75rem; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 0.875rem; outline: none; transition: border-color 0.2s; background: #f8fafc; }
+        .input-field:focus { border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,0.1); background: #fff; }
+        .btn { padding: 0.5rem 1rem; border-radius: 8px; font-size: 0.875rem; font-weight: 500; transition: all 0.2s; cursor: pointer; border: none; }
+        .btn-primary { background: #2563eb; color: white; }
+        .btn-primary:hover { background: #1d4ed8; }
+        .btn-secondary { background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0; }
+        .btn-secondary:hover { background: #e2e8f0; }
+        .btn-danger { background: #ef4444; color: white; }
+        .btn-danger:hover { background: #dc2626; }
+        .btn-success { background: #16a34a; color: white; }
+        .btn-success:hover { background: #15803d; }
+        .badge { display: inline-block; padding: 0.125rem 0.625rem; border-radius: 999px; font-size: 0.75rem; font-weight: 500; }
+        .loader-spinner { width: 32px; height: 32px; border: 3px solid #e2e8f0; border-top-color: #3b82f6; border-radius: 50%; animation: spin 0.8s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+
+<div id="app" x-data="appState()">
+    <!-- Loading screen (visible until Alpine loads) -->
+    <div id="app-loader" class="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-100 to-blue-50">
+        <div class="text-center">
+            <div class="loader-spinner mx-auto mb-4"></div>
+            <p class="text-sm text-slate-500">Cargando sistema...</p>
+        </div>
+    </div>
+
+    <!-- ============ LOGIN ============ -->
+    <template x-if="!auth.token">
+        <div class="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-100 to-blue-50">
+            <div class="card p-8 w-full max-w-md mx-4 fade-in">
+                <div class="text-center mb-8">
+                    <div class="w-14 h-14 rounded-xl bg-gradient-to-br from-blue-600 to-blue-400 flex items-center justify-center mx-auto shadow-md mb-4">
+                        <i data-lucide="zap" class="w-7 h-7 text-white"></i>
+                    </div>
+                    <h1 class="text-xl font-bold text-slate-900">CurrierMsj</h1>
+                    <p class="text-sm text-slate-500 mt-1">Sistema de Gestion Courier</p>
+                </div>
+                <form @submit.prevent="doLogin()" class="space-y-4">
+                    <div>
+                        <label class="block text-xs font-medium text-slate-600 mb-1">Email</label>
+                        <input type="email" x-model="auth.email" class="input-field" placeholder="admin@curriermsj.com" required>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-slate-600 mb-1">Contraseña</label>
+                        <input type="password" x-model="auth.password" class="input-field" placeholder="••••••••" required>
+                    </div>
+                    <template x-if="auth.error">
+                        <p class="text-xs text-red-600 bg-red-50 px-3 py-2 rounded-lg border border-red-200" x-text="auth.error"></p>
+                    </template>
+                    <button type="submit" class="btn btn-primary w-full" x-text="auth.loading ? 'Ingresando...' : 'Ingresar'"></button>
+                </form>
+                <p class="text-center text-[10px] text-slate-400 mt-6">CurrierMsj v2.0 — Panel Administrativo</p>
+            </div>
+        </div>
+    </template>
+
+    <!-- ============ APP LAYOUT ============ -->
+    <template x-if="auth.token">
+        <div class="h-screen flex">
+            <!-- SIDEBAR -->
+            <aside class="sidebar w-64 flex-shrink-0 h-screen flex flex-col">
+                <div class="p-5 border-b border-slate-200">
+                    <div class="flex items-center gap-3">
+                        <div class="w-9 h-9 rounded-lg bg-gradient-to-br from-blue-600 to-blue-400 flex items-center justify-center shadow-sm">
+                            <i data-lucide="zap" class="w-5 h-5 text-white"></i>
+                        </div>
+                        <div>
+                            <h1 class="text-slate-900 font-semibold text-sm">CurrierMsj</h1>
+                            <p class="text-[10px] text-slate-400 tracking-wide">GESTION COURIER</p>
+                        </div>
+                    </div>
+                </div>
+                <nav class="flex-1 p-3 space-y-1 overflow-y-auto">
+                    <p class="px-3 py-2 text-[10px] font-semibold text-slate-400 uppercase tracking-widest">Menu</p>
+                    <template x-for="item in sidebarItems" :key="item.id">
+                        <a @click="setTab(item.id)" class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-md text-sm" :class="{ 'active': tab === item.id }">
+                            <i :data-lucide="item.icon" class="w-4 h-4"></i>
+                            <span x-text="item.label"></span>
+                        </a>
+                    </template>
+                </nav>
+                <div class="p-4 border-t border-slate-200">
+                    <div class="flex items-center gap-2 text-xs text-slate-500">
+                        <div class="status-dot bg-emerald-500 animate-pulse"></div>
+                        <span>Conectado</span>
+                    </div>
+                    <p class="text-[10px] text-slate-400 mt-1" x-text="auth.email"></p>
+                    <button @click="doLogout()" class="text-[10px] text-red-500 hover:text-red-700 mt-1">Cerrar sesion</button>
+                </div>
+            </aside>
+
+            <!-- MAIN CONTENT -->
+            <main class="flex-1 flex flex-col overflow-hidden">
+                <!-- Header -->
+                <header class="bg-white border-b border-slate-200 px-6 py-3 flex items-center justify-between flex-shrink-0">
+                    <div>
+                        <h2 class="text-lg font-semibold text-slate-900" x-text="currentTab.label"></h2>
+                        <p class="text-xs text-slate-500 mt-0.5" x-text="currentTab.desc"></p>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <span class="flex items-center gap-1.5 text-[10px] bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded-full border border-emerald-200">
+                            <span class="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></span> SISTEMA ACTIVO
+                        </span>
+                        <span class="text-[10px] text-slate-400" x-text="clock"></span>
+                    </div>
+                </header>
+
+                <!-- Content area -->
+                <div class="flex-1 overflow-y-auto p-6">
+                    <!-- DASHBOARD -->
+                    <div x-show="tab === 'dashboard'" class="space-y-6 fade-in">
+                        <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                            <div class="card p-5 relative overflow-hidden"><div class="absolute top-0 right-0 w-24 h-24 bg-blue-50 rounded-bl-full"></div>
+                                <div class="flex items-start justify-between mb-3"><span class="kpi-label">Paquetes</span><div class="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center"><i data-lucide="package" class="w-4 h-4 text-blue-500"></i></div></div>
+                                <p class="kpi-value" x-text="stats.total_paquetes ?? '--'"></p>
+                                <p class="text-xs text-slate-500 mt-1.5" x-text="(stats.paquetes_hoy ?? 0) + ' hoy'"></p>
+                            </div>
+                            <div class="card p-5 relative overflow-hidden"><div class="absolute top-0 right-0 w-24 h-24 bg-emerald-50 rounded-bl-full"></div>
+                                <div class="flex items-start justify-between mb-3"><span class="kpi-label">Entregados</span><div class="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center"><i data-lucide="check-circle" class="w-4 h-4 text-emerald-500"></i></div></div>
+                                <p class="kpi-value" x-text="stats.paquetes_entregados ?? '--'"></p>
+                                <p class="text-xs text-slate-500 mt-1.5" x-text="'del total de ' + (stats.total_paquetes ?? 0)"></p>
+                            </div>
+                            <div class="card p-5 relative overflow-hidden"><div class="absolute top-0 right-0 w-24 h-24 bg-amber-50 rounded-bl-full"></div>
+                                <div class="flex items-start justify-between mb-3"><span class="kpi-label">Pendientes</span><div class="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center"><i data-lucide="clock" class="w-4 h-4 text-amber-500"></i></div></div>
+                                <p class="kpi-value" x-text="stats.paquetes_pendientes ?? '--'"></p>
+                                <p class="text-xs text-slate-500 mt-1.5">en transito / recibidos</p>
+                            </div>
+                            <div class="card p-5 relative overflow-hidden"><div class="absolute top-0 right-0 w-24 h-24 bg-violet-50 rounded-bl-full"></div>
+                                <div class="flex items-start justify-between mb-3"><span class="kpi-label">Clientes</span><div class="w-8 h-8 rounded-lg bg-violet-50 flex items-center justify-center"><i data-lucide="users" class="w-4 h-4 text-violet-500"></i></div></div>
+                                <p class="kpi-value" x-text="stats.total_clientes ?? '--'"></p>
+                                <p class="text-xs text-slate-500 mt-1.5" x-text="(stats.total_prospectos ?? 0) + ' prospectos'"></p>
+                            </div>
+                        </section>
+
+                        <section class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                            <div class="card p-5">
+                                <div class="flex items-center justify-between mb-4"><h3 class="text-sm font-semibold text-slate-900">Paquetes por Estado</h3></div>
+                                <div class="h-64"><canvas id="statusChart"></canvas></div>
+                            </div>
+                            <div class="card p-5">
+                                <div class="flex items-center justify-between mb-4"><h3 class="text-sm font-semibold text-slate-900">Ultimos Paquetes</h3></div>
+                                <div class="overflow-x-auto max-h-[260px] overflow-y-auto">
+                                    <table class="w-full text-xs">
+                                        <thead><tr class="text-slate-400 border-b border-slate-200"><th class="text-left py-2 pr-2 font-medium">Tracking</th><th class="text-left py-2 pr-2 font-medium">Remitente</th><th class="text-left py-2 font-medium">Estado</th></tr></thead>
+                                        <tbody>
+                                            <template x-for="p in (stats.ultimos_paquetes || []).slice(0,8)" :key="p.id">
+                                                <tr class="border-b border-slate-100">
+                                                    <td class="py-2 pr-2 text-slate-700 font-mono text-[10px]" x-text="p.tracking_code"></td>
+                                                    <td class="py-2 pr-2 text-slate-600 truncate max-w-[120px]" x-text="p.remitente_nombre"></td>
+                                                    <td class="py-2"><span class="badge" :class="estadoBadge(p.estado_actual)" x-text="p.etiqueta_actual || p.estado_actual"></span></td>
+                                                </tr>
+                                            </template>
+                                        </tbody>
+                                    </table>
+                                    <p class="text-center text-xs text-slate-400 mt-3" x-show="!(stats.ultimos_paquetes || []).length">Sin paquetes registrados.</p>
+                                </div>
+                            </div>
+                        </section>
+
+                        <section class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                            <div class="card p-5">
+                                <h3 class="text-sm font-semibold text-slate-900 mb-4">Servicios</h3>
+                                <div class="space-y-3" id="servicesGrid" x-init="$nextTick(() => renderServices())"></div>
+                            </div>
+                            <div class="card p-5">
+                                <h3 class="text-sm font-semibold text-slate-900 mb-4">Resumen</h3>
+                                <div class="space-y-3 text-xs">
+                                    <div class="flex justify-between p-2 bg-slate-50 rounded-lg"><span class="text-slate-500">Sesiones WhatsApp</span><span class="font-semibold" x-text="stats.sesiones_activas ?? 0"></span></div>
+                                    <div class="flex justify-between p-2 bg-slate-50 rounded-lg"><span class="text-slate-500">Prospectos</span><span class="font-semibold" x-text="stats.total_prospectos ?? 0"></span></div>
+                                    <div class="flex justify-between p-2 bg-slate-50 rounded-lg"><span class="text-slate-500">Paquetes Hoy</span><span class="font-semibold" x-text="stats.paquetes_hoy ?? 0"></span></div>
+                                </div>
+                            </div>
+                            <div class="card p-5 flex flex-col justify-center items-center text-center space-y-3">
+                                <div class="w-16 h-16 rounded-full bg-emerald-50 border-2 border-emerald-200 flex items-center justify-center"><span class="w-10 h-10 bg-emerald-500 rounded-full animate-pulse"></span></div>
+                                <p class="text-lg font-bold text-emerald-600">SISTEMA OPERATIVO</p>
+                                <p class="text-xs text-slate-500" x-text="`${stats.total_paquetes ?? 0} paquetes - ${stats.total_clientes ?? 0} clientes`"></p>
+                            </div>
+                        </section>
+                    </div>
+
+                    <!-- CLIENTES -->
+                    <div x-show="tab === 'clientes'" class="space-y-6 fade-in">
+                        <div class="flex items-center justify-between gap-4">
+                            <div class="flex gap-2 flex-1 max-w-md">
+                                <input type="text" x-model="clientes.filtro" class="input-field" placeholder="Buscar por nombre, cedula o telefono...">
+                                <button @click="loadClientes()" class="btn btn-primary">Buscar</button>
+                            </div>
+                            <button @click="openClienteModal()" class="btn btn-primary flex items-center gap-1.5"><i data-lucide="plus" class="w-4 h-4"></i> Nuevo Cliente</button>
+                        </div>
+                        <div class="card overflow-hidden">
+                            <table class="w-full text-xs">
+                                <thead><tr class="text-slate-400 border-b border-slate-200 bg-slate-50">
+                                    <th class="text-left py-2.5 px-3 font-medium">Cedula</th>
+                                    <th class="text-left py-2.5 px-3 font-medium">Nombre</th>
+                                    <th class="text-left py-2.5 px-3 font-medium">Telefono</th>
+                                    <th class="text-left py-2.5 px-3 font-medium">Tipo</th>
+                                    <th class="text-left py-2.5 px-3 font-medium">Ciudad</th>
+                                    <th class="text-left py-2.5 px-3 font-medium">Registrado</th>
+                                    <th class="text-right py-2.5 px-3 font-medium">Accion</th>
+                                </tr></thead>
+                                <tbody id="clientesTableBody">
+                                    <template x-for="c in clientes.items" :key="c.id">
+                                        <tr class="border-b border-slate-100 table-row">
+                                            <td class="py-2.5 px-3 text-slate-600 font-mono text-[11px]" x-text="c.cedula"></td>
+                                            <td class="py-2.5 px-3 text-slate-800 font-medium" x-text="c.nombre_completo"></td>
+                                            <td class="py-2.5 px-3 text-slate-600" x-text="c.telefono"></td>
+                                            <td class="py-2.5 px-3"><span class="badge" :class="tipoClienteBadge(c.tipo_cliente)" x-text="c.tipo_cliente"></span></td>
+                                            <td class="py-2.5 px-3 text-slate-500" x-text="c.ciudad"></td>
+                                            <td class="py-2.5 px-3 text-slate-400 text-[10px]" x-text="formatDate(c.created_at)"></td>
+                                            <td class="py-2.5 px-3 text-right">
+                                                <button @click="editCliente(c)" class="text-primary-600 hover:text-primary-800 text-[10px] font-medium">Editar</button>
+                                                <button @click="deleteCliente(c.id)" class="text-red-500 hover:text-red-700 text-[10px] font-medium ml-2">Eliminar</button>
+                                            </td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
+                            <p class="text-center text-xs text-slate-400 py-6" x-show="!clientes.items.length">No se encontraron clientes.</p>
+                        </div>
+                        <div class="flex items-center justify-between text-xs text-slate-500" x-show="clientes.items.length">
+                            <span x-text="`Pagina ${clientes.page} de ${clientes.totalPages}`"></span>
+                            <div class="flex gap-2">
+                                <button @click="prevPage('clientes')" class="btn btn-secondary text-xs" :disabled="clientes.page <= 1">Anterior</button>
+                                <button @click="nextPage('clientes')" class="btn btn-secondary text-xs" :disabled="clientes.page >= clientes.totalPages">Siguiente</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- PAQUETES -->
+                    <div x-show="tab === 'paquetes'" class="space-y-6 fade-in">
+                        <div class="flex items-center justify-between gap-4">
+                            <div class="flex gap-2 flex-1 max-w-md">
+                                <input type="text" x-model="paquetes.filtro" class="input-field" placeholder="Buscar por tracking, remitente...">
+                                <button @click="loadPaquetes()" class="btn btn-primary">Buscar</button>
+                            </div>
+                            <button @click="openPaqueteModal()" class="btn btn-primary flex items-center gap-1.5"><i data-lucide="plus" class="w-4 h-4"></i> Nuevo Paquete</button>
+                        </div>
+                        <div class="card overflow-hidden">
+                            <table class="w-full text-xs">
+                                <thead><tr class="text-slate-400 border-b border-slate-200 bg-slate-50">
+                                    <th class="text-left py-2.5 px-3 font-medium">Tracking</th>
+                                    <th class="text-left py-2.5 px-3 font-medium">Remitente</th>
+                                    <th class="text-left py-2.5 px-3 font-medium">Cliente</th>
+                                    <th class="text-left py-2.5 px-3 font-medium">Peso</th>
+                                    <th class="text-left py-2.5 px-3 font-medium">Estado</th>
+                                    <th class="text-left py-2.5 px-3 font-medium">Fecha</th>
+                                    <th class="text-right py-2.5 px-3 font-medium">Accion</th>
+                                </tr></thead>
+                                <tbody id="paquetesTableBody">
+                                    <template x-for="p in paquetes.items" :key="p.id">
+                                        <tr class="border-b border-slate-100 table-row">
+                                            <td class="py-2.5 px-3 font-mono text-[11px] text-primary-600 font-semibold" x-text="p.tracking_code"></td>
+                                            <td class="py-2.5 px-3 text-slate-600" x-text="p.remitente_nombre"></td>
+                                            <td class="py-2.5 px-3 text-slate-600" x-text="p.clientes?.nombre_completo || '--'"></td>
+                                            <td class="py-2.5 px-3 text-slate-500" x-text="p.peso_kg ? p.peso_kg + ' kg' : '--'"></td>
+                                            <td class="py-2.5 px-3"><span class="badge" :class="estadoBadge(p.estado_actual)" x-text="p.etiqueta_actual || p.estado_actual"></span></td>
+                                            <td class="py-2.5 px-3 text-slate-400 text-[10px]" x-text="formatDate(p.created_at)"></td>
+                                            <td class="py-2.5 px-3 text-right">
+                                                <button @click="openTrackingModal(p)" class="text-primary-600 hover:text-primary-800 text-[10px] font-medium">Tracking</button>
+                                                <button @click="editPaqueteEstado(p)" class="text-amber-600 hover:text-amber-800 text-[10px] font-medium ml-2">Estado</button>
+                                            </td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
+                            <p class="text-center text-xs text-slate-400 py-6" x-show="!paquetes.items.length">No se encontraron paquetes.</p>
+                        </div>
+                        <div class="flex items-center justify-between text-xs text-slate-500" x-show="paquetes.items.length">
+                            <span x-text="`Pagina ${paquetes.page} de ${paquetes.totalPages}`"></span>
+                            <div class="flex gap-2">
+                                <button @click="prevPage('paquetes')" class="btn btn-secondary text-xs" :disabled="paquetes.page <= 1">Anterior</button>
+                                <button @click="nextPage('paquetes')" class="btn btn-secondary text-xs" :disabled="paquetes.page >= paquetes.totalPages">Siguiente</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- OPERACIONES (Kanban empleados) -->
+                    <div x-show="tab === 'operaciones'" class="space-y-6 fade-in">
+                        <div class="flex items-center justify-between gap-4">
+                            <div class="flex gap-2">
+                                <button @click="opsView = 'kanban'" class="btn" :class="opsView === 'kanban' ? 'btn-primary' : 'btn-secondary'" x-text="'Tablero'"></button>
+                                <button @click="opsView = 'lista'" class="btn" :class="opsView === 'lista' ? 'btn-primary' : 'btn-secondary'" x-text="'Lista'"></button>
+                                <button @click="opsView = 'registrar'" class="btn" :class="opsView === 'registrar' ? 'btn-primary' : 'btn-secondary'" x-text="'+ Nuevo Envio'"></button>
+                            </div>
+                            <span class="text-xs text-slate-500" x-text="opsPaquetes.length + ' envios'"></span>
+                        </div>
+
+                        <!-- VISTA KANBAN -->
+                        <div x-show="opsView === 'kanban'" class="grid grid-cols-2 md:grid-cols-4 gap-3 overflow-x-auto pb-2" style="max-height:calc(100vh - 220px);overflow-y:auto">
+                            <template x-for="(col, colName) in opsKanban" :key="colName">
+                                <div class="space-y-2 min-w-[200px]">
+                                    <div class="flex items-center gap-2 px-1 mb-2">
+                                        <span class="w-2 h-2 rounded-full" :style="'background:' + (col.color || '#94a3b8')"></span>
+                                        <span class="text-xs font-semibold text-slate-700 uppercase tracking-wide" x-text="colName.replace(/_/g,' ')"></span>
+                                        <span class="text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded-full" x-text="col.items.length"></span>
+                                    </div>
+                                    <template x-for="p in col.items" :key="p.id">
+                                        <div @click="opsVerDetalle(p)" class="card p-3 cursor-pointer hover:shadow-md transition-shadow space-y-1.5 border-l-4" :style="'border-left-color:' + (col.color || '#94a3b8')">
+                                            <div class="flex items-center justify-between">
+                                                <span class="text-xs font-mono font-semibold text-primary-600" x-text="p.tracking_code"></span>
+                                                <span class="text-[10px] text-slate-400" x-text="p.peso_kg ? p.peso_kg + 'kg' : '--'"></span>
+                                            </div>
+                                            <p class="text-xs text-slate-700 font-medium truncate" x-text="p.remitente_nombre"></p>
+                                            <p class="text-[10px] text-slate-400 truncate" x-text="p.destinatario_nombre || 'Sin destinatario'"></p>
+                                            <div class="flex items-center justify-between pt-1">
+                                                <span class="text-[10px] text-slate-400" x-text="formatDate(p.created_at)"></span>
+                                                <button @click.stop="opsAvanzar(p)" class="text-[10px] text-primary-600 hover:text-primary-800 font-medium" x-show="colName !== 'entregado' && colName !== 'devuelto'">Avanzar</button>
+                                            </div>
+                                        </div>
+                                    </template>
+                                    <div x-show="!col.items.length" class="text-center py-6 text-xs text-slate-400 bg-slate-50 rounded-lg border border-dashed border-slate-200">Sin envios</div>
+                                </div>
+                            </template>
+                        </div>
+
+                        <!-- VISTA LISTA -->
+                        <div x-show="opsView === 'lista'" class="card overflow-hidden">
+                            <table class="w-full text-xs">
+                                <thead><tr class="text-slate-400 border-b border-slate-200 bg-slate-50">
+                                    <th class="text-left py-2.5 px-3 font-medium">Tracking</th>
+                                    <th class="text-left py-2.5 px-3 font-medium">Remitente</th>
+                                    <th class="text-left py-2.5 px-3 font-medium">Destinatario</th>
+                                    <th class="text-left py-2.5 px-3 font-medium">Estado</th>
+                                    <th class="text-left py-2.5 px-3 font-medium">Cliente</th>
+                                    <th class="text-left py-2.5 px-3 font-medium">Peso</th>
+                                    <th class="text-right py-2.5 px-3 font-medium">Accion</th>
+                                </tr></thead>
+                                <tbody>
+                                    <template x-for="p in opsPaquetes" :key="p.id">
+                                        <tr class="border-b border-slate-100 table-row">
+                                            <td class="py-2.5 px-3 font-mono text-[11px] text-primary-600 font-semibold" x-text="p.tracking_code"></td>
+                                            <td class="py-2.5 px-3 text-slate-600 truncate max-w-[120px]" x-text="p.remitente_nombre"></td>
+                                            <td class="py-2.5 px-3 text-slate-600 truncate max-w-[120px]" x-text="p.destinatario_nombre"></td>
+                                            <td class="py-2.5 px-3"><span class="badge" :class="estadoBadge(p.estado_actual)" x-text="p.etiqueta_actual || p.estado_actual"></span></td>
+                                            <td class="py-2.5 px-3 text-slate-500 text-[10px]" x-text="p.clientes?.nombre_completo || '--'"></td>
+                                            <td class="py-2.5 px-3 text-slate-500" x-text="p.peso_kg ? p.peso_kg + ' kg' : '--'"></td>
+                                            <td class="py-2.5 px-3 text-right">
+                                                <button @click="opsVerDetalle(p)" class="text-primary-600 hover:text-primary-800 text-[10px] font-medium">Detalle</button>
+                                                <button @click="opsAvanzar(p)" class="text-amber-600 hover:text-amber-800 text-[10px] font-medium ml-2">Estado</button>
+                                            </td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
+                            <p class="text-center text-xs text-slate-400 py-6" x-show="!opsPaquetes.length">No hay envios registrados.</p>
+                        </div>
+
+                        <!-- VISTA REGISTRAR (formulario rapido para empleados) -->
+                        <div x-show="opsView === 'registrar'" class="max-w-2xl mx-auto">
+                            <div class="card p-6">
+                                <h3 class="text-sm font-bold text-slate-900 mb-4">Registrar Nuevo Envio</h3>
+                                <form @submit.prevent="opsRegistrarEnvio()" class="space-y-4">
+                                    <div class="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <label class="block text-xs font-medium text-slate-600 mb-1">Cliente *</label>
+                                            <select x-model="opsForm.cliente_id" class="input-field" required>
+                                                <option value="">Seleccionar cliente...</option>
+                                                <template x-for="c in clientes.items" :key="c.id">
+                                                    <option :value="c.id" x-text="c.nombre_completo + ' - ' + c.cedula"></option>
+                                                </template>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label class="block text-xs font-medium text-slate-600 mb-1">Tracking (opcional)</label>
+                                            <input type="text" x-model="opsForm.tracking" class="input-field" placeholder="Auto si se deja vacio">
+                                        </div>
+                                    </div>
+                                    <div class="border-t border-slate-200 pt-3">
+                                        <p class="text-xs font-semibold text-slate-600 mb-2">Remitente</p>
+                                        <div class="grid grid-cols-2 gap-3">
+                                            <div><input type="text" x-model="opsForm.remitente" class="input-field" placeholder="Nombre del remitente *" required></div>
+                                            <div><input type="text" x-model="opsForm.remitente_pais" class="input-field" placeholder="Pais origen" value="Estados Unidos"></div>
+                                        </div>
+                                    </div>
+                                    <div class="border-t border-slate-200 pt-3">
+                                        <p class="text-xs font-semibold text-slate-600 mb-2">Destinatario</p>
+                                        <div class="grid grid-cols-2 gap-3">
+                                            <div><input type="text" x-model="opsForm.destinatario" class="input-field" placeholder="Nombre del destinatario *" required></div>
+                                            <div><input type="text" x-model="opsForm.destino" class="input-field" placeholder="Direccion destino *" required></div>
+                                        </div>
+                                    </div>
+                                    <div class="border-t border-slate-200 pt-3">
+                                        <p class="text-xs font-semibold text-slate-600 mb-2">Paquete</p>
+                                        <div class="grid grid-cols-3 gap-3">
+                                            <div><input type="text" x-model="opsForm.contenido" class="input-field" placeholder="Contenido"></div>
+                                            <div><input type="number" step="0.01" x-model="opsForm.peso" class="input-field" placeholder="Peso kg"></div>
+                                            <div><input type="number" step="0.01" x-model="opsForm.valor" class="input-field" placeholder="Valor $"></div>
+                                        </div>
+                                    </div>
+                                    <div class="flex justify-end gap-2 pt-2">
+                                        <button type="button" @click="opsView = 'lista'" class="btn btn-secondary">Cancelar</button>
+                                        <button type="submit" class="btn btn-primary" x-text="opsForm.saving ? 'Guardando...' : 'Registrar Envio'"></button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- TRACKING -->
+                    <div x-show="tab === 'tracking'" class="space-y-6 fade-in">
+                        <div class="flex items-center justify-between">
+                            <div class="flex gap-2 flex-1 max-w-md">
+                                <input type="text" x-model="tracking.code" class="input-field" placeholder="Ingrese codigo de tracking...">
+                                <button @click="searchTracking()" class="btn btn-primary">Consultar</button>
+                            </div>
+                        </div>
+                        <template x-if="tracking.result">
+                            <div class="card p-5 space-y-4">
+                                <div class="flex items-center justify-between">
+                                    <div><h3 class="text-sm font-semibold text-slate-900" x-text="'Paquete: ' + tracking.result.tracking_code"></h3>
+                                    <p class="text-xs text-slate-500" x-text="'Remitente: ' + tracking.result.remitente_nombre + ' | Destinatario: ' + tracking.result.destinatario_nombre"></p></div>
+                                    <span class="badge text-sm px-3 py-1" :class="estadoBadge(tracking.result.estado_actual)" x-text="tracking.result.etiqueta_actual || tracking.result.estado_actual"></span>
+                                </div>
+                                <template x-if="tracking.events && tracking.events.length">
+                                    <div class="space-y-0">
+                                        <h4 class="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-3">Historial</h4>
+                                        <template x-for="(ev, i) in tracking.events" :key="ev.id">
+                                            <div class="flex gap-3 pb-4 relative">
+                                                <div class="flex flex-col items-center">
+                                                    <div class="w-3 h-3 rounded-full" :class="i === 0 ? 'bg-primary-500' : 'bg-slate-300'"></div>
+                                                    <div class="w-0.5 flex-1 bg-slate-200 mt-1" x-show="i < tracking.events.length - 1"></div>
+                                                </div>
+                                                <div class="flex-1 pb-2">
+                                                    <p class="text-sm font-medium text-slate-800" x-text="ev.etiqueta"></p>
+                                                    <p class="text-xs text-slate-500" x-text="ev.descripcion || 'Sin descripcion'"></p>
+                                                    <p class="text-[10px] text-slate-400 mt-0.5" x-text="formatDate(ev.created_at)"></p>
+                                                </div>
+                                            </div>
+                                        </template>
+                                    </div>
+                                </template>
+                                <p x-show="!tracking.events?.length" class="text-xs text-slate-400">Sin eventos de tracking.</p>
+                            </div>
+                        </template>
+                        <p x-show="tracking.error" class="text-xs text-red-600" x-text="tracking.error"></p>
+                    </div>
+
+                    <!-- REPORTES -->
+                    <div x-show="tab === 'reportes'" class="space-y-6 fade-in">
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div class="card p-5 text-center">
+                                <i data-lucide="package" class="w-8 h-8 text-primary-500 mx-auto mb-2"></i>
+                                <h3 class="text-sm font-semibold text-slate-900 mb-1">Paquetes</h3>
+                                <p class="text-xs text-slate-500 mb-4">Exportar lista de paquetes</p>
+                                <a :href="'/api/reportes/paquetes'" class="btn btn-primary text-xs inline-block">Descargar CSV</a>
+                            </div>
+                            <div class="card p-5 text-center">
+                                <i data-lucide="users" class="w-8 h-8 text-emerald-500 mx-auto mb-2"></i>
+                                <h3 class="text-sm font-semibold text-slate-900 mb-1">Clientes</h3>
+                                <p class="text-xs text-slate-500 mb-4">Exportar lista de clientes</p>
+                                <a :href="'/api/reportes/clientes'" class="btn btn-success text-xs inline-block">Descargar CSV</a>
+                            </div>
+                            <div class="card p-5 text-center">
+                                <i data-lucide="bar-chart-3" class="w-8 h-8 text-amber-500 mx-auto mb-2"></i>
+                                <h3 class="text-sm font-semibold text-slate-900 mb-1">Dashboard</h3>
+                                <p class="text-xs text-slate-500 mb-4">Resumen general del sistema</p>
+                                <button @click="setTab('dashboard')" class="btn btn-secondary text-xs">Ir al Dashboard</button>
+                            </div>
+                        </div>
+                        <div class="card p-5">
+                            <h3 class="text-sm font-semibold text-slate-900 mb-3">Estadisticas Rapidas</h3>
+                            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+                                <div><p class="kpi-label text-xs">Paquetes</p><p class="text-lg font-bold text-slate-800" x-text="stats.total_paquetes ?? 0"></p></div>
+                                <div><p class="kpi-label text-xs">Clientes</p><p class="text-lg font-bold text-slate-800" x-text="stats.total_clientes ?? 0"></p></div>
+                                <div><p class="kpi-label text-xs">Entregados</p><p class="text-lg font-bold text-slate-800" x-text="stats.paquetes_entregados ?? 0"></p></div>
+                                <div><p class="kpi-label text-xs">Prospectos</p><p class="text-lg font-bold text-slate-800" x-text="stats.total_prospectos ?? 0"></p></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- CONFIG -->
+                    <div x-show="tab === 'config'" class="space-y-6 fade-in">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div class="card p-5">
+                                <h3 class="text-sm font-semibold text-slate-900 mb-3">WhatsApp</h3>
+                                <div class="space-y-2 text-xs text-slate-600">
+                                    <p><span class="text-slate-500">Phone ID:</span> 1238571072668582</p>
+                                    <p><span class="text-slate-500">WABA ID:</span> 1768778814289159</p>
+                                    <p><span class="text-slate-500">App ID:</span> 1566734678572301</p>
+                                    <p><span class="text-slate-500">API:</span> Graph v20.0</p>
+                                    <p class="mt-2"><span class="text-slate-500">Estado:</span> <span class="text-emerald-600 font-medium">Conectado</span></p>
+                                </div>
+                            </div>
+                            <div class="card p-5">
+                                <h3 class="text-sm font-semibold text-slate-900 mb-3">Base de Datos</h3>
+                                <div class="space-y-2 text-xs text-slate-600">
+                                    <p><span class="text-slate-500">URL:</span> pqklmihtvhquvtznklkx.supabase.co</p>
+                                    <p><span class="text-slate-500">Paquetes:</span> <span x-text="stats.total_paquetes ?? 0"></span></p>
+                                    <p><span class="text-slate-500">Clientes:</span> <span x-text="stats.total_clientes ?? 0"></span></p>
+                                    <p class="mt-2"><span class="text-slate-500">Estado:</span> <span class="text-emerald-600 font-medium">Conectado</span></p>
+                                </div>
+                            </div>
+                            <div class="card p-5">
+                                <h3 class="text-sm font-semibold text-slate-900 mb-3">Bot</h3>
+                                <div class="space-y-2 text-xs text-slate-600">
+                                    <p><span class="text-slate-500">Nombre:</span> Rex</p>
+                                    <p><span class="text-slate-500">Ruta:</span> EE.UU. -> Ecuador</p>
+                                    <p><span class="text-slate-500">Horario:</span> Lunes a Sabado 8:00-18:00</p>
+                                    <p><span class="text-slate-500">Webhook:</span> washday-figment-plexiglas.ngrok-free.dev</p>
+                                </div>
+                            </div>
+                            <div class="card p-5">
+                                <h3 class="text-sm font-semibold text-slate-900 mb-3">Sistema</h3>
+                                <div class="space-y-2 text-xs text-slate-600">
+                                    <p><span class="text-slate-500">Version:</span> v2.0.0</p>
+                                    <p><span class="text-slate-500">Framework:</span> Flask + Supabase</p>
+                                    <p><span class="text-slate-500">Frontend:</span> Alpine.js + Tailwind</p>
+                                    <p><span class="text-slate-500">Arquitectura:</span> Clean Architecture</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </template>
+
+    <!-- ============ MODALS ============ -->
+    <!-- MODAL: Detalle de envio (Operaciones) -->
+    <template x-if="modals.detalle.open">
+        <div class="fixed inset-0 modal-overlay flex items-center justify-center z-50 p-4" @click.self="modals.detalle.open = false">
+            <div class="card p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto fade-in">
+                <div class="flex items-center justify-between mb-4">
+                    <div>
+                        <h3 class="text-sm font-bold text-slate-900" x-text="'Envio: ' + (modals.detalle.item?.tracking_code || '')"></h3>
+                        <p class="text-xs text-slate-500" x-text="modals.detalle.item?.remitente_nombre + ' → ' + modals.detalle.item?.destinatario_nombre"></p>
+                    </div>
+                    <button @click="modals.detalle.open = false" class="text-slate-400 hover:text-slate-600"><i data-lucide="x" class="w-5 h-5"></i></button>
+                </div>
+                <div class="grid grid-cols-2 gap-4 mb-4">
+                    <div class="bg-slate-50 p-3 rounded-lg">
+                        <p class="text-[10px] text-slate-400 uppercase tracking-wide font-medium">Remitente</p>
+                        <p class="text-sm font-medium text-slate-800" x-text="modals.detalle.item?.remitente_nombre || '--'"></p>
+                        <p class="text-xs text-slate-500" x-text="modals.detalle.item?.remitente_pais || '--'"></p>
+                    </div>
+                    <div class="bg-slate-50 p-3 rounded-lg">
+                        <p class="text-[10px] text-slate-400 uppercase tracking-wide font-medium">Destinatario</p>
+                        <p class="text-sm font-medium text-slate-800" x-text="modals.detalle.item?.destinatario_nombre || '--'"></p>
+                        <p class="text-xs text-slate-500" x-text="modals.detalle.item?.destinatario_direccion || '--'"></p>
+                    </div>
+                    <div class="bg-slate-50 p-3 rounded-lg">
+                        <p class="text-[10px] text-slate-400 uppercase tracking-wide font-medium">Paquete</p>
+                        <p class="text-sm font-medium text-slate-800" x-text="(modals.detalle.item?.contenido || 'Sin contenido') + (modals.detalle.item?.peso_kg ? ' - ' + modals.detalle.item?.peso_kg + ' kg' : '')"></p>
+                    </div>
+                    <div class="bg-slate-50 p-3 rounded-lg">
+                        <p class="text-[10px] text-slate-400 uppercase tracking-wide font-medium">Estado Actual</p>
+                        <p><span class="badge text-xs" :class="estadoBadge(modals.detalle.item?.estado_actual)" x-text="modals.detalle.item?.etiqueta_actual || modals.detalle.item?.estado_actual"></span></p>
+                        <p class="text-[10px] text-slate-400 mt-1" x-text="'Creado: ' + formatDate(modals.detalle.item?.created_at)"></p>
+                    </div>
+                </div>
+                <div x-show="modals.detalle.tracking && modals.detalle.tracking.length">
+                    <h4 class="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-3">Historial de Tracking</h4>
+                    <div class="space-y-0">
+                        <template x-for="(ev, i) in modals.detalle.tracking" :key="ev.id">
+                            <div class="flex gap-3 pb-3 relative">
+                                <div class="flex flex-col items-center">
+                                    <div class="w-2.5 h-2.5 rounded-full" :class="i === 0 ? 'bg-primary-500 ring-2 ring-primary-100' : 'bg-slate-300'"></div>
+                                    <div class="w-0.5 flex-1 bg-slate-200 mt-1" x-show="i < modals.detalle.tracking.length - 1"></div>
+                                </div>
+                                <div class="flex-1">
+                                    <p class="text-sm font-medium text-slate-800" x-text="ev.etiqueta"></p>
+                                    <p class="text-xs text-slate-500" x-text="ev.descripcion || 'Sin descripcion'"></p>
+                                    <p class="text-[10px] text-slate-400 mt-0.5" x-text="formatDate(ev.created_at)"></p>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+                <div class="flex justify-end gap-2 pt-3 border-t border-slate-200 mt-3">
+                    <button @click="opsAvanzar(modals.detalle.item); modals.detalle.open = false" class="btn btn-primary text-xs">Actualizar Estado</button>
+                    <button @click="modals.detalle.open = false" class="btn btn-secondary text-xs">Cerrar</button>
+                </div>
+            </div>
+        </div>
+    </template>
+
+    <!-- MODAL: Avanzar estado (Operaciones) -->
+    <template x-if="modals.avanzar.open">
+        <div class="fixed inset-0 modal-overlay flex items-center justify-center z-50 p-4" @click.self="modals.avanzar.open = false">
+            <div class="card p-6 w-full max-w-md fade-in">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-sm font-bold text-slate-900">Avanzar Estado</h3>
+                    <button @click="modals.avanzar.open = false" class="text-slate-400 hover:text-slate-600"><i data-lucide="x" class="w-5 h-5"></i></button>
+                </div>
+                <p class="text-xs text-slate-500 mb-3" x-text="'Paquete: ' + (modals.avanzar.item?.tracking_code || '')"></p>
+                <p class="text-xs text-slate-500 mb-3" x-text="'Estado actual: ' + (modals.avanzar.item?.etiqueta_actual || modals.avanzar.item?.estado_actual || 'desconocido')"></p>
+                <form @submit.prevent="opsConfirmarAvance()" class="space-y-3">
+                    <div>
+                        <label class="block text-xs font-medium text-slate-600 mb-1">Nuevo Estado</label>
+                        <template x-if="opsEtiquetas.length">
+                            <select x-model="modals.avanzar.etiqueta" class="input-field">
+                                <option value="">Seleccionar...</option>
+                                <template x-for="et in opsEtiquetas" :key="et.id">
+                                    <option :value="et.nombre" x-text="et.nombre"></option>
+                                </template>
+                            </select>
+                        </template>
+                        <template x-if="!opsEtiquetas.length">
+                            <select x-model="modals.avanzar.etiqueta" class="input-field">
+                                <option value="">Seleccionar...</option>
+                                <option value="Recibido en USA">Recibido en USA</option>
+                                <option value="En transito">En transito</option>
+                                <option value="En aduana">En aduana</option>
+                                <option value="En destino">En destino</option>
+                                <option value="En ruta de entrega">En ruta de entrega</option>
+                                <option value="Entregado">Entregado</option>
+                                <option value="Devuelto">Devuelto</option>
+                                <option value="Retenido">Retenido</option>
+                            </select>
+                        </template>
+                    </div>
+                    <div><label class="block text-xs font-medium text-slate-600 mb-1">Descripcion</label><textarea x-model="modals.avanzar.descripcion" class="input-field" rows="2" placeholder="Detalle del cambio..."></textarea></div>
+                    <div><label class="block text-xs font-medium text-slate-600 mb-1">Ubicacion</label><input type="text" x-model="modals.avanzar.ubicacion" class="input-field" placeholder="Ciudad / Bodega"></div>
+                    <div class="flex justify-end gap-2 pt-2">
+                        <button type="button" @click="modals.avanzar.open = false" class="btn btn-secondary">Cancelar</button>
+                        <button type="submit" class="btn btn-primary" x-text="modals.avanzar.saving ? 'Guardando...' : 'Actualizar'"></button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </template>
+
+    <!-- MODAL: Cliente -->
+    <template x-if="modals.cliente.open">
+        <div class="fixed inset-0 modal-overlay flex items-center justify-center z-50 p-4" @click.self="modals.cliente.open = false">
+            <div class="card p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto fade-in">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-sm font-bold text-slate-900" x-text="modals.cliente.editId ? 'Editar Cliente' : 'Nuevo Cliente'"></h3>
+                    <button @click="modals.cliente.open = false" class="text-slate-400 hover:text-slate-600"><i data-lucide="x" class="w-5 h-5"></i></button>
+                </div>
+                <form @submit.prevent="saveCliente()" class="space-y-3">
+                    <div class="grid grid-cols-2 gap-3">
+                        <div><label class="block text-xs font-medium text-slate-600 mb-1">Cedula *</label><input type="text" x-model="modals.cliente.cedula" class="input-field" required></div>
+                        <div><label class="block text-xs font-medium text-slate-600 mb-1">Telefono *</label><input type="text" x-model="modals.cliente.telefono" class="input-field" required></div>
+                    </div>
+                    <div><label class="block text-xs font-medium text-slate-600 mb-1">Nombre Completo *</label><input type="text" x-model="modals.cliente.nombre" class="input-field" required></div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div><label class="block text-xs font-medium text-slate-600 mb-1">Email</label><input type="email" x-model="modals.cliente.email" class="input-field"></div>
+                        <div><label class="block text-xs font-medium text-slate-600 mb-1">Ciudad</label><input type="text" x-model="modals.cliente.ciudad" class="input-field" value="Guayaquil"></div>
+                    </div>
+                    <div><label class="block text-xs font-medium text-slate-600 mb-1">Direccion</label><input type="text" x-model="modals.cliente.direccion" class="input-field"></div>
+                    <div><label class="block text-xs font-medium text-slate-600 mb-1">Tipo</label>
+                        <select x-model="modals.cliente.tipo" class="input-field">
+                            <option value="regular">Regular</option><option value="grupo">Grupo</option><option value="mayorista">Mayorista</option>
+                        </select>
+                    </div>
+                    <div><label class="block text-xs font-medium text-slate-600 mb-1">Notas</label><textarea x-model="modals.cliente.notas" class="input-field" rows="2"></textarea></div>
+                    <div class="flex justify-end gap-2 pt-2">
+                        <button type="button" @click="modals.cliente.open = false" class="btn btn-secondary">Cancelar</button>
+                        <button type="submit" class="btn btn-primary" x-text="modals.cliente.editId ? 'Guardar Cambios' : 'Crear Cliente'"></button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </template>
+
+    <!-- MODAL: Paquete -->
+    <template x-if="modals.paquete.open">
+        <div class="fixed inset-0 modal-overlay flex items-center justify-center z-50 p-4" @click.self="modals.paquete.open = false">
+            <div class="card p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto fade-in">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-sm font-bold text-slate-900">Nuevo Paquete</h3>
+                    <button @click="modals.paquete.open = false" class="text-slate-400 hover:text-slate-600"><i data-lucide="x" class="w-5 h-5"></i></button>
+                </div>
+                <form @submit.prevent="savePaquete()" class="space-y-3">
+                    <div><label class="block text-xs font-medium text-slate-600 mb-1">Cliente ID *</label><input type="text" x-model="modals.paquete.cliente_id" class="input-field" placeholder="UUID del cliente" required></div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div><label class="block text-xs font-medium text-slate-600 mb-1">Remitente *</label><input type="text" x-model="modals.paquete.remitente" class="input-field" required></div>
+                        <div><label class="block text-xs font-medium text-slate-600 mb-1">Pais Origen</label><input type="text" x-model="modals.paquete.pais" class="input-field" value="Estados Unidos"></div>
+                    </div>
+                    <div><label class="block text-xs font-medium text-slate-600 mb-1">Destinatario *</label><input type="text" x-model="modals.paquete.destinatario" class="input-field" required></div>
+                    <div><label class="block text-xs font-medium text-slate-600 mb-1">Destino (Direccion)</label><input type="text" x-model="modals.paquete.destino" class="input-field"></div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div><label class="block text-xs font-medium text-slate-600 mb-1">Contenido</label><input type="text" x-model="modals.paquete.contenido" class="input-field"></div>
+                        <div><label class="block text-xs font-medium text-slate-600 mb-1">Peso (kg)</label><input type="number" step="0.01" x-model="modals.paquete.peso" class="input-field"></div>
+                    </div>
+                    <div class="flex justify-end gap-2 pt-2">
+                        <button type="button" @click="modals.paquete.open = false" class="btn btn-secondary">Cancelar</button>
+                        <button type="submit" class="btn btn-primary">Crear Paquete</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </template>
+
+    <!-- MODAL: Tracking / Cambio Estado -->
+    <template x-if="modals.estado.open">
+        <div class="fixed inset-0 modal-overlay flex items-center justify-center z-50 p-4" @click.self="modals.estado.open = false">
+            <div class="card p-6 w-full max-w-md fade-in">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-sm font-bold text-slate-900">Actualizar Estado</h3>
+                    <button @click="modals.estado.open = false" class="text-slate-400 hover:text-slate-600"><i data-lucide="x" class="w-5 h-5"></i></button>
+                </div>
+                <p class="text-xs text-slate-500 mb-3" x-text="'Paquete: ' + (modals.estado.paquete?.tracking_code || '')"></p>
+                <form @submit.prevent="updateEstado()" class="space-y-3">
+                    <div><label class="block text-xs font-medium text-slate-600 mb-1">Nuevo Estado</label>
+                        <select x-model="modals.estado.etiqueta" class="input-field">
+                            <option value="Recibido en USA">Recibido en USA</option>
+                            <option value="En transito">En transito</option>
+                            <option value="En aduana">En aduana</option>
+                            <option value="En destino">En destino</option>
+                            <option value="En ruta de entrega">En ruta de entrega</option>
+                            <option value="Entregado">Entregado</option>
+                            <option value="Devuelto">Devuelto</option>
+                            <option value="Retenido">Retenido</option>
+                        </select>
+                    </div>
+                    <div><label class="block text-xs font-medium text-slate-600 mb-1">Descripcion</label><textarea x-model="modals.estado.descripcion" class="input-field" rows="2"></textarea></div>
+                    <div><label class="block text-xs font-medium text-slate-600 mb-1">Ubicacion</label><input type="text" x-model="modals.estado.ubicacion" class="input-field"></div>
+                    <div class="flex justify-end gap-2 pt-2">
+                        <button type="button" @click="modals.estado.open = false" class="btn btn-secondary">Cancelar</button>
+                        <button type="submit" class="btn btn-primary">Actualizar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </modal>
+</div>
+
+function renderServices() {
+    const grid = document.getElementById('servicesGrid');
+    if (!grid) return;
+    const items = [
+        { name: 'API Flask', sub: 'Backend - puerto 5000', icon: 'server', ok: true },
+        { name: 'WhatsApp Cloud', sub: 'Meta - v20.0', icon: 'message-circle', ok: true },
+        { name: 'Supabase', sub: 'PostgreSQL', icon: 'database', ok: true },
+    ];
+    grid.innerHTML = items.map(it => {
+        const c = it.ok ? 'emerald' : 'red';
+        return `<div class="flex items-center justify-between p-3 rounded-lg bg-slate-50 border border-slate-200">
+            <div class="flex items-center gap-2.5">
+                <div class="w-8 h-8 rounded-md bg-${c}-50 flex items-center justify-center"><i data-lucide="${it.icon}" class="w-4 h-4 text-${c}-600"></i></div>
+                <div><p class="text-xs font-medium text-slate-800">${it.name}</p><p class="text-[10px] text-slate-400">${it.sub}</p></div>
+            </div>
+            <span class="flex items-center gap-1.5 text-[10px] font-semibold text-${c}-600"><span class="status-dot bg-${c}-500 animate-pulse"></span> OPERATIVO</span>
+        </div>`;
+    }).join('');
+    lucide.createIcons();
+}
+</script>
+</body>
+</html>

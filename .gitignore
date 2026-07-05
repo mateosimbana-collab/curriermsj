@@ -14,3 +14,7 @@ node_modules/
 .env.local
 dashboard/.env
 dashboard/.env.local
+iniciar.bat
+backend/config/local.py
+supabase/.branches
+supabase/.temp/
