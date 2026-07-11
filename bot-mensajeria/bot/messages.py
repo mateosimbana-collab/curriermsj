@@ -168,22 +168,25 @@ class MessageTemplates:
 
     @staticmethod
     def tracking_card(shipment: dict[str, Any], tracking_code: str) -> str:
-        status = (shipment.get("estado") or "pendiente").lower()
+        status = (shipment.get("estado_actual") or shipment.get("estado") or "pendiente").lower()
+        status_label = (shipment.get("etiqueta_actual") or shipment.get("estado_actual") or shipment.get("estado") or "Pendiente").capitalize()
+        destinatario = shipment.get("destinatario_nombre") or shipment.get("destinatario") or ""
+        destino = shipment.get("destinatario_direccion") or shipment.get("direccion_destino") or ""
+        peso = shipment.get("peso_kg") if shipment.get("peso_kg") is not None else (shipment.get("peso") or "")
+        tracking = shipment.get("tracking_code") or tracking_code
         return (
             f"== *{BUSINESS}* ==\n"
             "_Entregas rapidas y seguras_\n"
             f"{LINE}\n"
-            f"*PAQUETE #{tracking_code}*\n"
+            f"*PAQUETE #{tracking}*\n"
             f"{LINE}\n"
-            f"Para: *{_value(shipment.get('destinatario'))}*\n"
-            f"Destino: *{_value(shipment.get('direccion_destino'))}*\n"
-            f"Peso: *{_value(shipment.get('peso'))}*\n"
-            f"Servicio: *{_value(shipment.get('servicio_envio'), 'Pendiente')}*\n"
+            f"Para: *{_value(destinatario)}*\n"
+            f"Destino: *{_value(destino)}*\n"
+            f"Peso: *{_value(peso)}*\n"
+            f"Contenido: *{_value(shipment.get('contenido'), 'No especificado')}*\n"
             f"{LINE}\n"
-            "*ESTADO DEL ENVIO:*\n"
+            f"*ESTADO: {status_label}*\n"
             f"{_status_lines(status)}\n"
-            f"{LINE}\n"
-            f"Estimado: *{_value(shipment.get('entrega_estimada'), 'Por confirmar')}*"
         )
 
     @staticmethod
@@ -322,13 +325,14 @@ class MessageTemplates:
 
     @staticmethod
     def shipment_created(tracking_code: str, data: dict[str, Any]) -> str:
+        dest = data.get("destinatario_nombre") or data.get("destinatario") or ""
+        destino = data.get("destinatario_direccion") or data.get("direccion_destino") or data.get("destino") or ""
         return (
             "*ENVIO REGISTRADO*\n"
             f"{LINE}\n"
             f"Codigo: *{tracking_code}*\n"
-            f"Para: *{_value(data.get('destinatario'))}*\n"
-            f"Destino: *{_value(data.get('direccion_destino') or data.get('destino'))}*\n"
-            f"Servicio: *{_value(data.get('servicio_envio'))}*\n"
+            f"Para: *{_value(dest)}*\n"
+            f"Destino: *{_value(destino)}*\n"
             f"{LINE}\n"
             "Un agente confirmara el valor final y se pondra en contacto contigo."
         )
@@ -341,12 +345,13 @@ class MessageTemplates:
         lines = ["*MIS ENVIOS ACTIVOS*", LINE]
         for shipment in shipments:
             code = shipment.get("tracking_code") or f"CUR-{int(shipment['id']):05d}"
+            estado = shipment.get("etiqueta_actual") or shipment.get("estado_actual") or shipment.get("estado") or "pendiente"
             lines.extend(
                 [
                     f"*{code}*",
-                    f"Para: {_value(shipment.get('destinatario'))}",
-                    f"Destino: {_value(shipment.get('direccion_destino'))}",
-                    f"Estado: {_value(shipment.get('estado'), 'pendiente')}",
+                    f"Para: {_value(shipment.get('destinatario_nombre') or shipment.get('destinatario'))}",
+                    f"Destino: {_value(shipment.get('destinatario_direccion') or shipment.get('direccion_destino'))}",
+                    f"Estado: {_value(estado)}",
                     "",
                 ]
             )

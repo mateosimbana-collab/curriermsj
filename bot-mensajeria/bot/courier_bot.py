@@ -555,8 +555,11 @@ class CourierBot:
             self.send_menu(event.phone_number)
             return
 
-        shipment_id = self.repository.save_shipment(self._shipment_payload(data))
-        tracking_code = f"CUR-{shipment_id:05d}"
+        session = self.repository.get_user_state(event.phone_number)
+        payload = self._shipment_payload(data)
+        if session and session.get("cliente_id"):
+            payload["cliente_id"] = session["cliente_id"]
+        tracking_code = self.repository.save_shipment(payload)
         self.repository.reset_user_state(event.phone_number)
         self.whatsapp.send_buttons(
             event.phone_number,
@@ -565,25 +568,18 @@ class CourierBot:
         )
 
     def _shipment_payload(self, data: dict[str, Any]) -> dict[str, Any]:
-        now = datetime.now()
         return {
-            "remitente": data.get("remitente"),
-            "telefono_remitente": data.get("telefono_remitente"),
-            "destinatario": data.get("destinatario"),
-            "telefono_destinatario": data.get("telefono_destinatario"),
-            "direccion_origen": data.get("origen"),
-            "direccion_destino": data.get("direccion_destino") or data.get("destino"),
-            "tipo_paquete": data.get("tipo_paquete"),
-            "peso": data.get("peso"),
-            "dimensiones": data.get("tipo_paquete"),
-            "fecha_envio": now.strftime("%d/%m/%Y"),
-            "hora_envio": now.strftime("%H:%M"),
+            "cliente_id": data.get("cliente_id"),
+            "remitente_nombre": data.get("remitente", ""),
+            "remitente_telefono": data.get("telefono_remitente", ""),
+            "remitente_pais": data.get("pais_origen", "Estados Unidos"),
+            "destinatario_nombre": data.get("destinatario", ""),
+            "destinatario_telefono": data.get("telefono_destinatario", ""),
+            "destinatario_direccion": data.get("direccion_destino") or data.get("destino") or "",
+            "contenido": data.get("tipo_paquete", ""),
+            "peso_kg": data.get("peso"),
             "instrucciones": data.get("instrucciones"),
-            "servicio_envio": data.get("servicio_envio"),
-            "valor_cotizado": None,
-            "entrega_estimada": data.get("entrega_estimada"),
-            "estado": "pendiente",
-            "chat_id": 0,
+            "estado_actual": "recibido_en_usa",
         }
 
     @staticmethod

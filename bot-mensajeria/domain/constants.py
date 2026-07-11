@@ -97,11 +97,14 @@ REPORT_CATEGORIES = {
 }
 
 STATUS_STEPS = [
-    ("pendiente", "Solicitud registrada"),
-    ("recibido", "Paquete recibido"),
-    ("en_transito", "En camino al hub"),
-    ("en_ruta", "En ruta de entrega"),
+    ("recibido_en_usa", "Recibido en USA"),
+    ("en_transito", "En transito"),
+    ("en_aduana", "En aduana"),
+    ("en_destino", "En destino"),
+    ("en_ruta_de_entrega", "En ruta de entrega"),
     ("entregado", "Entregado"),
+    ("devuelto", "Devuelto"),
+    ("retenido", "Retenido"),
 ]
 
 BASE_QUOTES_USD = {

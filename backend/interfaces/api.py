@@ -1,11 +1,12 @@
 import os
 import csv
 import io
-from datetime import datetime
+from datetime import datetime, timedelta
 from functools import wraps
-from typing import Any
+from typing import Any, Optional
 
-from flask import Blueprint, jsonify, request, send_file, send_from_directory
+import jwt as pyjwt
+from flask import Blueprint, jsonify, request, send_file, send_from_directory, g
 from werkzeug.security import generate_password_hash
 
 from backend.infrastructure.supabase_repository import get_repo
@@ -15,6 +16,26 @@ from backend.application.services import (ClienteService, PaqueteService, Tracki
 
 
 api = Blueprint("api", __name__, url_prefix="/api")
+
+JWT_SECRET = os.getenv("JWT_SECRET", "curriermsj-super-secret-key-change-in-prod")
+
+
+def require_auth(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        auth = request.headers.get("Authorization", "")
+        if not auth.startswith("Bearer "):
+            return error_response("Token requerido", 401)
+        token = auth.split(" ", 1)[1]
+        try:
+            payload = pyjwt.decode(token, JWT_SECRET, algorithms=["HS256"])
+            g.current_user = payload
+        except pyjwt.ExpiredSignatureError:
+            return error_response("Token expirado", 401)
+        except pyjwt.InvalidTokenError:
+            return error_response("Token invalido", 401)
+        return f(*args, **kwargs)
+    return decorated
 
 
 _svc_instance = None
@@ -77,6 +98,7 @@ def login():
 # ============================================
 
 @api.route("/dashboard", methods=["GET"])
+@require_auth
 def dashboard():
     try:
         stats = svc("dashboard").obtener_stats()
@@ -90,6 +112,7 @@ def dashboard():
 # ============================================
 
 @api.route("/clientes", methods=["GET"])
+@require_auth
 def listar_clientes():
     page = request.args.get("page", 1, type=int)
     per_page = request.args.get("per_page", 20, type=int)
@@ -99,6 +122,7 @@ def listar_clientes():
 
 
 @api.route("/clientes", methods=["POST"])
+@require_auth
 def crear_cliente():
     data = request.get_json() or {}
     required = ("cedula", "nombre_completo", "telefono")
@@ -115,6 +139,7 @@ def crear_cliente():
 
 
 @api.route("/clientes/<cliente_id>", methods=["GET"])
+@require_auth
 def obtener_cliente(cliente_id):
     clientes = svc("repo").listar_clientes(filtros={"busqueda": cliente_id})
     for c in clientes.get("data", []):
@@ -124,6 +149,7 @@ def obtener_cliente(cliente_id):
 
 
 @api.route("/clientes/<cliente_id>", methods=["PUT"])
+@require_auth
 def actualizar_cliente(cliente_id):
     data = request.get_json() or {}
     cliente = svc("repo").actualizar_cliente(cliente_id, data)
@@ -133,6 +159,7 @@ def actualizar_cliente(cliente_id):
 
 
 @api.route("/clientes/<cliente_id>", methods=["DELETE"])
+@require_auth
 def eliminar_cliente(cliente_id):
     if svc("repo").eliminar_cliente(cliente_id):
         return json_response({"mensaje": "Cliente eliminado"})
@@ -144,6 +171,7 @@ def eliminar_cliente(cliente_id):
 # ============================================
 
 @api.route("/paquetes", methods=["GET"])
+@require_auth
 def listar_paquetes():
     page = request.args.get("page", 1, type=int)
     per_page = request.args.get("per_page", 20, type=int)
@@ -153,6 +181,7 @@ def listar_paquetes():
 
 
 @api.route("/paquetes", methods=["POST"])
+@require_auth
 def crear_paquete():
     data = request.get_json() or {}
     if not data.get("cliente_id"):
@@ -169,6 +198,7 @@ def crear_paquete():
 
 
 @api.route("/paquetes/<paquete_id>", methods=["GET"])
+@require_auth
 def obtener_paquete(paquete_id):
     paquete = svc("repo").buscar_paquete_por_tracking(paquete_id)
     if not paquete:
@@ -192,6 +222,7 @@ def buscar_paquete():
 
 
 @api.route("/paquetes/<paquete_id>/estado", methods=["PUT"])
+@require_auth
 def actualizar_estado_paquete(paquete_id):
     data = request.get_json() or {}
     etiqueta = data.get("etiqueta", "")
@@ -215,6 +246,7 @@ def actualizar_estado_paquete(paquete_id):
 
 @api.route("/paquetes/<paquete_id>/tracking", methods=["GET"])
 def historial_tracking(paquete_id):
+    # Public endpoint - no auth required (used by public tracking)
     eventos = svc("tracking").obtener_historial(paquete_id)
     return json_response(eventos)
 
@@ -224,6 +256,7 @@ def historial_tracking(paquete_id):
 # ============================================
 
 @api.route("/etiquetas", methods=["GET"])
+@require_auth
 def listar_etiquetas():
     return json_response(svc("repo").listar_etiquetas())
 
@@ -233,6 +266,7 @@ def listar_etiquetas():
 # ============================================
 
 @api.route("/prospectos", methods=["GET"])
+@require_auth
 def listar_prospectos():
     page = request.args.get("page", 1, type=int)
     per_page = request.args.get("per_page", 20, type=int)
@@ -244,6 +278,7 @@ def listar_prospectos():
 # ============================================
 
 @api.route("/sesiones", methods=["GET"])
+@require_auth
 def listar_sesiones():
     try:
         res = svc("repo").client.table("sesiones_whatsapp").select("*, clientes!left(nombre_completo)").order("updated_at", desc=True).limit(50).execute()
@@ -257,6 +292,7 @@ def listar_sesiones():
 # ============================================
 
 @api.route("/notificaciones", methods=["GET"])
+@require_auth
 def listar_notificaciones():
     page = request.args.get("page", 1, type=int)
     per_page = request.args.get("per_page", 20, type=int)
@@ -277,11 +313,13 @@ def listar_notificaciones():
 # ============================================
 
 @api.route("/config", methods=["GET"])
+@require_auth
 def listar_config():
     return json_response(svc("config").listar())
 
 
 @api.route("/config/<clave>", methods=["GET"])
+@require_auth
 def obtener_config(clave):
     valor = svc("config").obtener(clave)
     if valor is None:
@@ -290,6 +328,7 @@ def obtener_config(clave):
 
 
 @api.route("/config/<clave>", methods=["PUT"])
+@require_auth
 def actualizar_config(clave):
     data = request.get_json() or {}
     valor = data.get("valor", "")
@@ -303,11 +342,13 @@ def actualizar_config(clave):
 # ============================================
 
 @api.route("/usuarios", methods=["GET"])
+@require_auth
 def listar_usuarios():
     return json_response(svc("repo").listar_usuarios())
 
 
 @api.route("/usuarios", methods=["POST"])
+@require_auth
 def crear_usuario():
     data = request.get_json() or {}
     required = ("email", "password", "nombre")
@@ -335,6 +376,7 @@ def crear_usuario():
 # ============================================
 
 @api.route("/reportes/paquetes", methods=["GET"])
+@require_auth
 def reporte_paquetes():
     fecha_desde = request.args.get("desde", datetime.utcnow().replace(day=1).isoformat())
     fecha_hasta = request.args.get("hasta", datetime.utcnow().isoformat())
@@ -365,6 +407,7 @@ def reporte_paquetes():
 
 
 @api.route("/reportes/clientes", methods=["GET"])
+@require_auth
 def reporte_clientes():
     data = svc("repo").generar_reporte_clientes()
     output = io.StringIO()
@@ -389,11 +432,25 @@ def reporte_clientes():
 
 
 # ============================================
+# AUDITORIA
+# ============================================
+
+@api.route("/audit", methods=["GET"])
+@require_auth
+def listar_audit():
+    page = request.args.get("page", 1, type=int)
+    per_page = min(request.args.get("per_page", 30, type=int), 100)
+    tabla = request.args.get("tabla", "", type=str)
+    return json_response(svc("repo").listar_audit_logs(page=page, per_page=per_page, tabla=tabla))
+
+
+# ============================================
 # CHECKS DE SALUD
 # ============================================
 
 @api.route("/health", methods=["GET"])
 def health():
+    # Public endpoint - no auth required
     estado = {"servidor": "ok", "timestamp": datetime.utcnow().isoformat()}
     try:
         svc("repo").client.table("etiquetas_estado").select("id").limit(1).execute()

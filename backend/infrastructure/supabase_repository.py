@@ -1,4 +1,5 @@
 import os
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from typing import Any, Optional
 from uuid import UUID
@@ -55,7 +56,7 @@ class SupabaseRepository:
         )
         return res.data[0] if res.data else None
 
-    def listar_clientes(self, page: int = 1, per_page: int = 20, filtros: dict = None) -> dict[str, Any]:
+    def listar_clientes(self, page: int = 1, per_page: int = 15, filtros: dict = None) -> dict[str, Any]:
         query = self.client.table("clientes").select("*", count="exact").is_("deleted_at", "null")
         if filtros:
             if filtros.get("busqueda"):
@@ -114,7 +115,7 @@ class SupabaseRepository:
         )
         return res.data[0] if res.data else None
 
-    def listar_paquetes(self, page: int = 1, per_page: int = 20, filtros: dict = None) -> dict[str, Any]:
+    def listar_paquetes(self, page: int = 1, per_page: int = 15, filtros: dict = None) -> dict[str, Any]:
         query = self.client.table("paquetes").select("*, clientes(nombre_completo, telefono, cedula)", count="exact").is_("deleted_at", "null")
         if filtros:
             if filtros.get("estado"):
@@ -268,36 +269,58 @@ class SupabaseRepository:
     # ============================================
 
     def get_dashboard_stats(self) -> dict[str, Any]:
-        now = datetime.utcnow().isoformat()
         today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
+        estados_pendientes = ["recibido_en_usa", "en_transito", "en_aduana", "en_destino", "en_ruta_de_entrega"]
 
-        total_clientes = self.client.table("clientes").select("id", count="exact").is_("deleted_at", "null").execute()
-        total_paquetes = self.client.table("paquetes").select("id", count="exact").is_("deleted_at", "null").execute()
-        paquetes_hoy = self.client.table("paquetes").select("id", count="exact").gte("created_at", today_start).execute()
-        paquetes_pendientes = self.client.table("paquetes").select("id", count="exact").in_("estado_actual", ["recibido", "en_transito"]).execute()
-        paquetes_entregados = self.client.table("paquetes").select("id", count="exact").eq("estado_actual", "entregado").execute()
-        total_prospectos = self.client.table("prospectos").select("id", count="exact").eq("estado", "activo").execute()
+        def q1():
+            return self.client.table("clientes").select("id", count="exact").is_("deleted_at", "null").execute()
+        def q2():
+            return self.client.table("paquetes").select("id", count="exact").is_("deleted_at", "null").execute()
+        def q3():
+            return self.client.table("paquetes").select("id", count="exact").gte("created_at", today_start).execute()
+        def q4():
+            return self.client.table("paquetes").select("id", count="exact").in_("estado_actual", estados_pendientes).execute()
+        def q5():
+            return self.client.table("paquetes").select("id", count="exact").eq("estado_actual", "entregado").execute()
+        def q6():
+            return self.client.table("prospectos").select("id", count="exact").eq("estado", "activo").execute()
+        def q7():
+            return self.client.table("paquetes").select("*, clientes(nombre_completo, telefono)").is_("deleted_at", "null").order("created_at", desc=True).limit(10).execute()
+        def q8():
+            try:
+                return self.client.table("sesiones_whatsapp").select("telefono", count="exact").execute()
+            except Exception:
+                return None
+        def q9():
+            try:
+                return self.client.rpc("paquetes_por_estado").execute()
+            except Exception:
+                return None
 
-        res_upto = self.client.table("paquetes").select("*, clientes(nombre_completo, telefono)").is_("deleted_at", "null").order("created_at", desc=True).limit(10).execute()
+        with ThreadPoolExecutor(max_workers=5) as pool:
+            f1 = pool.submit(q1)
+            f2 = pool.submit(q2)
+            f3 = pool.submit(q3)
+            f4 = pool.submit(q4)
+            f5 = pool.submit(q5)
+            f6 = pool.submit(q6)
+            f7 = pool.submit(q7)
+            f8 = pool.submit(q8)
+            f9 = pool.submit(q9)
 
-        res_by_estado = self.client.rpc("paquetes_por_estado").execute()
-
-        try:
-            res_sesiones = self.client.table("sesiones_whatsapp").select("telefono", count="exact").execute()
-            sesiones_activas = res_sesiones.count if hasattr(res_sesiones, "count") else len(res_sesiones.data)
-        except Exception:
-            sesiones_activas = 0
+        def _count(res):
+            return res.count if hasattr(res, "count") else len(res.data) if hasattr(res, "data") else 0
 
         return {
-            "total_clientes": total_clientes.count if hasattr(total_clientes, "count") else len(total_clientes.data),
-            "total_paquetes": total_paquetes.count if hasattr(total_paquetes, "count") else len(total_paquetes.data),
-            "paquetes_hoy": paquetes_hoy.count if hasattr(paquetes_hoy, "count") else len(paquetes_hoy.data),
-            "paquetes_pendientes": paquetes_pendientes.count if hasattr(paquetes_pendientes, "count") else len(paquetes_pendientes.data),
-            "paquetes_entregados": paquetes_entregados.count if hasattr(paquetes_entregados, "count") else len(paquetes_entregados.data),
-            "total_prospectos": total_prospectos.count if hasattr(total_prospectos, "count") else len(total_prospectos.data),
-            "sesiones_activas": sesiones_activas,
-            "ultimos_paquetes": res_upto.data,
-            "paquetes_por_estado": res_by_estado.data if hasattr(res_by_estado, "data") else [],
+            "total_clientes": _count(f1.result()),
+            "total_paquetes": _count(f2.result()),
+            "paquetes_hoy": _count(f3.result()),
+            "paquetes_pendientes": _count(f4.result()),
+            "paquetes_entregados": _count(f5.result()),
+            "total_prospectos": _count(f6.result()),
+            "sesiones_activas": _count(f8.result()) if f8.result() else 0,
+            "ultimos_paquetes": f7.result().data if hasattr(f7.result(), "data") else [],
+            "paquetes_por_estado": f9.result().data if f9.result() and hasattr(f9.result(), "data") else [],
         }
 
     # ============================================
@@ -332,7 +355,7 @@ class SupabaseRepository:
         return res.data
 
     # ============================================
-    # REPORTES
+    # REPORTES / AUDITORIA
     # ============================================
 
     def generar_reporte_paquetes(self, fecha_desde: str, fecha_hasta: str) -> list[dict[str, Any]]:
@@ -344,3 +367,15 @@ class SupabaseRepository:
     def generar_reporte_clientes(self) -> list[dict[str, Any]]:
         res = self.client.table("clientes").select("cedula, nombre_completo, telefono, tipo_cliente, ciudad, created_at").is_("deleted_at", "null").execute()
         return res.data
+
+    def listar_audit_logs(self, page: int = 1, per_page: int = 30, tabla: str = "") -> dict[str, Any]:
+        query = self.client.table("audit_log").select("*", count="exact").order("created_at", desc=True).range((page - 1) * per_page, page * per_page - 1)
+        if tabla:
+            query = query.eq("tabla", tabla)
+        res = query.execute()
+        return {
+            "data": res.data,
+            "total": res.count if hasattr(res, "count") else len(res.data),
+            "page": page,
+            "per_page": per_page,
+        }

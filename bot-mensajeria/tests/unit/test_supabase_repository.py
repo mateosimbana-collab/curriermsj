@@ -1,19 +1,19 @@
 import json
+import os
 from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
 
 import httpx
 import pytest
 
+from domain.constants import Step
 from services.supabase_repository import SupabaseRepository
 
 
 @pytest.fixture
 def repo():
-    return SupabaseRepository(
-        supabase_url="https://test.supabase.co",
-        supabase_key="test_key",
-    )
+    with patch.dict(os.environ, {"SUPABASE_URL": "https://test.supabase.co", "SUPABASE_KEY": "test_key"}):
+        return SupabaseRepository()
 
 
 class TestInit:
@@ -25,9 +25,10 @@ class TestInit:
         assert repo.table_clientes == "clientes"
 
     def test_url_trailing_slash_stripped(self):
-        r = SupabaseRepository(supabase_url="https://test.co/", supabase_key="k")
-        assert r.supabase_url == "https://test.co"
-        assert r.supabase_url.endswith("/") is False
+        with patch.dict("os.environ", {"SUPABASE_URL": "https://test.co", "SUPABASE_KEY": "k"}):
+            r = SupabaseRepository()
+            assert r.supabase_url == "https://test.co"
+            assert r.supabase_url.endswith("/") is False
 
     def test_headers_have_auth(self, repo):
         h = repo.headers
@@ -36,69 +37,88 @@ class TestInit:
         assert h["Content-Type"] == "application/json"
 
     def test_raises_without_config(self):
-        r = SupabaseRepository(supabase_url="", supabase_key="")
-        with pytest.raises(RuntimeError, match="Supabase no configurado"):
-            r._request("GET", "/test")
+        with patch.dict("os.environ", {"SUPABASE_URL": "", "SUPABASE_KEY": ""}):
+            with pytest.raises(ValueError, match="SUPABASE_URL y SUPABASE_KEY son requeridos"):
+                SupabaseRepository()
 
 
-class TestTable:
+class TestTableUrl:
     def test_returns_full_url(self, repo):
-        assert repo._table("clientes") == "https://test.supabase.co/rest/v1/clientes"
+        assert repo._table_url("clientes") == "https://test.supabase.co/rest/v1/clientes"
+
+
+def _mock_execute(repo, return_data):
+    repo.client = MagicMock()
+    mock_res = MagicMock()
+    mock_res.data = return_data
+    chain = MagicMock()
+    chain.execute.return_value = mock_res
+    repo.client.table.return_value = chain
+    return chain
 
 
 class TestGetClient:
     def test_returns_client(self, repo):
-        with patch.object(repo, "_request", return_value=[{"phone_number": "593991234567", "nombre": "Juan"}]) as mock:
-            result = repo.get_client("593991234567")
-            assert result["nombre"] == "Juan"
+        chain = _mock_execute(repo, [{"telefono": "593991234567", "nombre_completo": "Juan"}])
+        result = repo.get_client("593991234567")
+        assert result["nombre_completo"] == "Juan"
+        chain.select.assert_called_with("*")
+        chain.eq.assert_called_with("telefono", "593991234567")
 
     def test_returns_none_when_not_found(self, repo):
-        with patch.object(repo, "_request", return_value=[]):
-            result = repo.get_client("593991234567")
-            assert result is None
+        _mock_execute(repo, [])
+        result = repo.get_client("593991234567")
+        assert result is None
 
 
 class TestSaveClient:
     def test_creates_client(self, repo):
-        with patch.object(repo, "_request", return_value=[{"phone_number": "593991234567"}]) as mock:
-            result = repo.save_client("593991234567", "Juan", "Perez", "Gye", "0991234567")
-            assert result["phone_number"] == "593991234567"
-            args = mock.call_args
-            assert args[0][0] == "POST"
-            assert "phone_number" in args.kwargs["json"]
+        _mock_execute(repo, [])
+        with patch.object(repo, "crear_cliente", return_value={"telefono": "593991234567", "nombre_completo": "Juan Perez"}) as mock:
+            result = repo.save_client("593991234567", "Juan", "Perez")
+            assert result["nombre_completo"] == "Juan Perez"
+            mock.assert_called_once()
+
+    def test_updates_existing(self, repo):
+        existing = {"id": "uuid-1", "telefono": "593991234567", "nombre_completo": "Juan"}
+        _mock_execute(repo, [existing])
+        with patch.object(repo, "actualizar_cliente") as mock_update:
+            repo.save_client("593991234567", "Juan", "Perez")
+            mock_update.assert_called_once()
 
     def test_empty_data_returns_empty_dict(self, repo):
-        with patch.object(repo, "_request", return_value=[]):
+        _mock_execute(repo, [])
+        with patch.object(repo, "crear_cliente", return_value=None):
             result = repo.save_client("593991234567", "Juan")
             assert result == {}
 
 
 class TestGetUserState:
     def test_returns_state(self, repo):
-        with patch.object(repo, "_request", return_value=[{"phone_number": "593991234567", "paso_actual": "menu"}]) as mock:
-            result = repo.get_user_state("593991234567")
-            assert result["paso_actual"] == "menu"
+        chain = _mock_execute(repo, [{"telefono": "593991234567", "paso_actual": "menu"}])
+        result = repo.get_user_state("593991234567")
+        assert result["paso_actual"] == "menu"
 
     def test_returns_none(self, repo):
-        with patch.object(repo, "_request", return_value=[]):
-            result = repo.get_user_state("593991234567")
-            assert result is None
+        _mock_execute(repo, [])
+        result = repo.get_user_state("593991234567")
+        assert result is None
 
 
 class TestCreateUserState:
     def test_creates_new_state(self, repo):
-        with patch.object(repo, "get_user_state", return_value=None):
-            with patch.object(repo, "_request", return_value=[{"phone_number": "593991234567", "paso_actual": "menu"}]) as mock:
+        with patch.object(repo, "guardar_sesion") as mock_guardar:
+            with patch.object(repo, "obtener_sesion", return_value={"telefono": "593991234567", "paso_actual": "menu"}):
                 result = repo.create_user_state("593991234567", "menu", {"key": "val"})
                 assert result["paso_actual"] == "menu"
-                args = mock.call_args[0]
-                assert args[0] == "POST"
+                mock_guardar.assert_called_once_with("593991234567", "menu", {"key": "val"})
 
-    def test_updates_if_exists(self, repo):
-        with patch.object(repo, "get_user_state", return_value={"phone_number": "593991234567", "paso_actual": "menu"}):
-            with patch.object(repo, "update_user_state") as mock_update:
-                repo.create_user_state("593991234567", "otro_paso", {})
-                mock_update.assert_called_once()
+    def test_existing_session_no_update(self, repo):
+        with patch.object(repo, "obtener_sesion", return_value={"telefono": "593991234567", "paso_actual": "otro_paso"}):
+            with patch.object(repo, "guardar_sesion") as mock_guardar:
+                result = repo.create_user_state("593991234567", "menu", {})
+                assert result["paso_actual"] == "otro_paso"
+                mock_guardar.assert_not_called()
 
     def test_409_fallback(self, repo):
         mock_response = MagicMock()
@@ -112,22 +132,19 @@ class TestCreateUserState:
 
 class TestUpdateUserState:
     def test_updates_step(self, repo):
-        with patch.object(repo, "_request") as mock:
-            repo.update_user_state("593991234567", step="nuevo_paso")
-            args = mock.call_args
-            assert args[0][0] == "PATCH"
-            assert "paso_actual" in args.kwargs["json"]
+        chain = _mock_execute(repo, [{"telefono": "593991234567", "paso_actual": "menu"}])
+        repo.update_user_state("593991234567", step="nuevo_paso")
+        chain.update.assert_called_once()
 
     def test_updates_data(self, repo):
-        with patch.object(repo, "_request") as mock:
-            repo.update_user_state("593991234567", data={"clave": "valor"})
-            args = mock.call_args
-            assert "datos_temp" in args.kwargs["json"]
+        chain = _mock_execute(repo, [{"telefono": "593991234567"}])
+        repo.update_user_state("593991234567", data={"clave": "valor"})
+        chain.update.assert_called_once()
 
     def test_reset_state(self, repo):
         with patch.object(repo, "update_user_state") as mock:
             repo.reset_user_state("593991234567")
-            mock.assert_called_once_with("593991234567", "menu", {})
+            mock.assert_called_once_with("593991234567", Step.MENU, {})
 
 
 class TestSearchFAQ:

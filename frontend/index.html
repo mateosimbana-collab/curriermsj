@@ -16,12 +16,14 @@
                 { id:'operaciones', label:'Operaciones', icon:'clipboard-list', desc:'Gestion diaria de envios' },
                 { id:'tracking', label:'Tracking', icon:'search', desc:'Consultar estado de paquetes' },
                 { id:'reportes', label:'Reportes', icon:'file-text', desc:'Exportar reportes' },
+                { id:'auditoria', label:'Auditoria', icon:'history', desc:'Registro de cambios' },
                 { id:'config', label:'Configuracion', icon:'settings', desc:'Parametros del sistema' },
             ],
             get currentTab(){return this.sidebarItems.find(i=>i.id===this.tab)||this.sidebarItems[0]},
             clientes:{items:[],page:1,totalPages:1,filtro:''},
             paquetes:{items:[],page:1,totalPages:1,filtro:''},
             tracking:{code:'',result:null,events:[],error:''},
+            audit:{items:[],page:1,totalPages:1,tabla:''},
             opsView:'kanban', opsPaquetes:[], opsKanban:{}, opsEtiquetas:[],
             opsForm:{cliente_id:'',tracking:'',remitente:'',remitente_pais:'Estados Unidos',destinatario:'',destino:'',contenido:'',peso:'',valor:'',saving:false},
             modals:{
@@ -31,39 +33,42 @@
                 detalle:{open:false,item:null,tracking:[]},
                 avanzar:{open:false,item:null,etiqueta:'',descripcion:'',ubicacion:'',saving:false},
             },
-            init(){document.getElementById('app-loader')?.remove();this.updateClock();setInterval(()=>this.updateClock(),1000);if(this.auth.token){this.loadDashboard();setInterval(()=>this.loadDashboard(),30000)}},
+            init(){document.getElementById('app-loader')?.remove();this.updateClock();setInterval(()=>this.updateClock(),1000);if(this.auth.token){this.loadDashboard();setInterval(()=>this.loadDashboard(),60000)}},
+            authHeader(){return this.auth.token ? {'Authorization':'Bearer '+this.auth.token} : {}},
+            api(url,opts={}){opts.headers={...opts.headers,...this.authHeader()};return fetch(url,opts)},
             updateClock(){this.clock=new Date().toLocaleTimeString('es-EC',{hour:'2-digit',minute:'2-digit',second:'2-digit'})},
             async doLogin(){this.auth.error='';this.auth.loading=true;try{const r=await fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:this.auth.email,password:this.auth.password})});const d=await r.json();if(d.data?.token){this.auth.token=d.data.token;localStorage.setItem('cm_token',d.data.token);this.loadDashboard()}else{this.auth.error=d.error||'Credenciales invalidas'}}catch(e){this.auth.error='Error de conexion'}finally{this.auth.loading=false}},
             doLogout(){this.auth.token='';localStorage.removeItem('cm_token');this.stats={};this.chartsBuilt=!1;this.clientes.items=[];this.paquetes.items=[]},
-            async loadDashboard(){try{const r=await fetch('/api/dashboard');const d=await r.json();if(d.data)this.stats=d.data;this.$nextTick(()=>{this.buildChart();lucide.createIcons()})}catch(e){console.error('Dashboard error:',e)}},
-            buildChart(){if(!this.chartsBuilt&&document.getElementById('statusChart')){try{this.chartsBuilt=!0;const e=this.stats.paquetes_por_estado||[];const t=document.getElementById('statusChart').getContext('2d');new Chart(t,{type:'doughnut',data:{labels:e.map(r=>r.etiqueta_actual||r.estado_actual),datasets:[{data:e.map(r=>r.count),backgroundColor:['#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#ec4899']}]},options:{cutout:'65%',plugins:{legend:{display:!1,position:'bottom'}}}})}catch(e){console.error('Chart error:',e)}}},
-            setTab(id){this.tab=id;if(id==='clientes'&&!this.clientes.items.length)this.loadClientes();if(id==='paquetes'&&!this.paquetes.items.length)this.loadPaquetes();if(id==='dashboard')this.loadDashboard();if(id==='operaciones')this.loadOperaciones();this.$nextTick(()=>lucide.createIcons())},
+            async loadDashboard(){try{const r=await this.api('/api/dashboard');const d=await r.json();if(d.data)this.stats=d.data;this.$nextTick(()=>{this.buildChart();lucide.createIcons()})}catch(e){console.error('Dashboard error:',e)}},
+            buildChart(){if(!this.chartsBuilt&&document.getElementById('statusChart')){try{this.chartsBuilt=!0;const e=this.stats.paquetes_por_estado||[];const t=document.getElementById('statusChart').getContext('2d');new Chart(t,{type:'doughnut',data:{labels:e.map(r=>r.etiqueta_actual||r.estado_actual||r.estado),datasets:[{data:e.map(r=>r.count),backgroundColor:['#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#ec4899']}]},options:{cutout:'65%',plugins:{legend:{display:!1,position:'bottom'}}}})}catch(e){console.error('Chart error:',e)}}},
+            setTab(id){this.tab=id;if(id==='clientes'&&!this.clientes.items.length)this.loadClientes();if(id==='paquetes'&&!this.paquetes.items.length)this.loadPaquetes();if(id==='dashboard')this.loadDashboard();if(id==='operaciones')this.loadOperaciones();if(id==='auditoria')this.loadAudit();this.$nextTick(()=>lucide.createIcons())},
+            async loadAudit(){try{const f=new URLSearchParams({page:this.audit.page,per_page:25});if(this.audit.tabla)f.set('tabla',this.audit.tabla);const r=await this.api('/api/audit?'+f.toString());const d=await r.json();if(d.data){this.audit.items=d.data.data||[];this.audit.totalPages=Math.ceil(d.data.total/d.data.per_page)||1}this.$nextTick(()=>lucide.createIcons())}catch(e){console.error(e)}},
             formatDate(d){if(!d)return'--';try{return new Date(d).toLocaleString('es-EC',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})}catch(e){return d}},
             estadoBadge(est){const e=(est||'').toLowerCase();if(e.includes('entreg')||e==='entregado')return'bg-emerald-100 text-emerald-700';if(e.includes('transito')||e.includes('ruta'))return'bg-blue-100 text-blue-700';if(e.includes('aduana'))return'bg-violet-100 text-violet-700';if(e.includes('destino'))return'bg-cyan-100 text-cyan-700';if(e.includes('devuel')||e.includes('reten'))return'bg-red-100 text-red-700';if(e.includes('recibido'))return'bg-amber-100 text-amber-700';return'bg-slate-100 text-slate-600'},
             tipoClienteBadge(t){if(t==='mayorista')return'bg-violet-100 text-violet-700';if(t==='grupo')return'bg-blue-100 text-blue-700';return'bg-slate-100 text-slate-600'},
-            async loadClientes(){try{const filtros=new URLSearchParams({page:this.clientes.page,per_page:20});if(this.clientes.filtro)filtros.set('busqueda',this.clientes.filtro);const r=await fetch('/api/clientes?'+filtros.toString());const d=await r.json();if(d.data){this.clientes.items=d.data.data||d.data;this.clientes.totalPages=Math.ceil(d.data.total/d.data.per_page)||1}this.$nextTick(()=>lucide.createIcons())}catch(e){console.error(e)}},
-            async saveCliente(){const m=this.modals.cliente;if(!m.nombre||!m.cedula)return;try{const url=m.editId?'/api/clientes/'+m.editId:'/api/clientes';const r=await fetch(url,{method:m.editId?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({nombre_completo:m.nombre,cedula:m.cedula,telefono:m.telefono,email:m.email,ciudad:m.ciudad,direccion:m.direccion,tipo:m.tipo,notas:m.notas})});const d=await r.json();if(d.data){m.open=!1;this.clientes={items:[],page:1,totalPages:1,filtro:this.clientes.filtro};this.loadClientes()}else alert(d.error||'Error')}catch(e){alert('Error de conexion')}},
-            async deleteCliente(id){if(!confirm('Eliminar este cliente?'))return;try{await fetch('/api/clientes/'+id,{method:'DELETE'});this.clientes={items:[],page:1,totalPages:1,filtro:this.clientes.filtro};this.loadClientes()}catch(e){alert('Error')}},
+            async loadClientes(){try{const filtros=new URLSearchParams({page:this.clientes.page,per_page:15});if(this.clientes.filtro)filtros.set('busqueda',this.clientes.filtro);const r=await this.api('/api/clientes?'+filtros.toString());const d=await r.json();if(d.data){this.clientes.items=d.data.data||d.data;this.clientes.totalPages=Math.ceil(d.data.total/d.data.per_page)||1}this.$nextTick(()=>lucide.createIcons())}catch(e){console.error(e)}},
+            async saveCliente(){const m=this.modals.cliente;if(!m.nombre||!m.cedula)return;try{const url=m.editId?'/api/clientes/'+m.editId:'/api/clientes';const r=await this.api(url,{method:m.editId?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({nombre_completo:m.nombre,cedula:m.cedula,telefono:m.telefono,email:m.email,ciudad:m.ciudad,direccion:m.direccion,tipo:m.tipo,notas:m.notas})});const d=await r.json();if(d.data){m.open=!1;this.clientes={items:[],page:1,totalPages:1,filtro:this.clientes.filtro};this.loadClientes()}else alert(d.error||'Error')}catch(e){alert('Error de conexion')}},
+            async deleteCliente(id){if(!confirm('Eliminar este cliente?'))return;try{await this.api('/api/clientes/'+id,{method:'DELETE'});this.clientes={items:[],page:1,totalPages:1,filtro:this.clientes.filtro};this.loadClientes()}catch(e){alert('Error')}},
             nextPage(s){this[s].page++;this['load'+s.charAt(0).toUpperCase()+s.slice(1)]()},
             prevPage(s){this[s].page=Math.max(1,this[s].page-1);this['load'+s.charAt(0).toUpperCase()+s.slice(1)]()},
-            async loadPaquetes(){try{const filtros=new URLSearchParams({page:this.paquetes.page,per_page:20});if(this.paquetes.filtro)filtros.set('busqueda',this.paquetes.filtro);const r=await fetch('/api/paquetes?'+filtros.toString());const d=await r.json();if(d.data){this.paquetes.items=d.data.data||d.data;this.paquetes.totalPages=Math.ceil(d.data.total/d.data.per_page)||1}this.$nextTick(()=>lucide.createIcons())}catch(e){console.error(e)}},
-            async savePaquete(){const m=this.modals.paquete;if(!m.cliente_id||!m.remitente||!m.destinatario||!m.destino)return;try{const r=await fetch('/api/paquetes',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({cliente_id:parseInt(m.cliente_id),remitente_nombre:m.remitente,remitente_pais:m.pais,destinatario_nombre:m.destinatario,destinatario_direccion:m.destino,contenido:m.contenido,peso_kg:parseFloat(m.peso)||null})});const d=await r.json();if(d.data){m.open=!1;this.paquetes={items:[],page:1,totalPages:1,filtro:this.paquetes.filtro};this.loadPaquetes();alert('Paquete registrado: '+d.data.tracking_code)}else alert(d.error||'Error')}catch(e){alert('Error de conexion')}},
-            async updateEstado(){const m=this.modals.estado;if(!m.etiqueta||!m.paquete)return;try{const r=await fetch('/api/paquetes/'+m.paquete.id+'/estado',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({etiqueta:m.etiqueta,descripcion:m.descripcion,ubicacion:m.ubicacion})});const d=await r.json();if(d.data){m.open=!1;this.loadPaquetes()}else alert(d.error||'Error')}catch(e){alert('Error de conexion')}},
+            async loadPaquetes(){try{const filtros=new URLSearchParams({page:this.paquetes.page,per_page:15});if(this.paquetes.filtro)filtros.set('busqueda',this.paquetes.filtro);const r=await this.api('/api/paquetes?'+filtros.toString());const d=await r.json();if(d.data){this.paquetes.items=d.data.data||d.data;this.paquetes.totalPages=Math.ceil(d.data.total/d.data.per_page)||1}this.$nextTick(()=>lucide.createIcons())}catch(e){console.error(e)}},
+            async savePaquete(){const m=this.modals.paquete;if(!m.cliente_id||!m.remitente||!m.destinatario||!m.destino)return;try{const r=await this.api('/api/paquetes',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({cliente_id:m.cliente_id,remitente_nombre:m.remitente,remitente_pais:m.pais,destinatario_nombre:m.destinatario,destinatario_direccion:m.destino,contenido:m.contenido,peso_kg:parseFloat(m.peso)||null})});const d=await r.json();if(d.data){m.open=!1;this.paquetes={items:[],page:1,totalPages:1,filtro:this.paquetes.filtro};this.loadPaquetes();alert('Paquete registrado: '+d.data.tracking_code)}else alert(d.error||'Error')}catch(e){alert('Error de conexion')}},
+            async updateEstado(){const m=this.modals.estado;if(!m.etiqueta||!m.paquete)return;try{const r=await this.api('/api/paquetes/'+m.paquete.id+'/estado',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({etiqueta:m.etiqueta,descripcion:m.descripcion,ubicacion:m.ubicacion})});const d=await r.json();if(d.data){m.open=!1;this.loadPaquetes()}else alert(d.error||'Error')}catch(e){alert('Error de conexion')}},
             async searchTracking(){this.tracking.result=null;this.tracking.events=[];this.tracking.error='';if(!this.tracking.code)return;try{const r=await fetch('/api/paquetes/buscar?tracking='+encodeURIComponent(this.tracking.code));const d=await r.json();if(d.data){this.tracking.result=d.data;const r2=await fetch('/api/paquetes/'+d.data.id+'/tracking');const d2=await r2.json();this.tracking.events=d2.data||[]}else this.tracking.error=d.error||'No encontrado'}catch(e){this.tracking.error='Error de conexion'}},
             openClienteModal(){const m=this.modals.cliente;m.open=!0;m.editId=null;m.cedula='';m.nombre='';m.telefono='';m.email='';m.ciudad='Guayaquil';m.direccion='';m.tipo='regular';m.notas=''},
             editCliente(c){const m=this.modals.cliente;m.open=!0;m.editId=c.id;m.cedula=c.cedula||'';m.nombre=c.nombre_completo||'';m.telefono=c.telefono||'';m.email=c.email||'';m.ciudad=c.ciudad||'Guayaquil';m.direccion=c.direccion||'';m.tipo=c.tipo_cliente||'regular';m.notas=c.notas||''},
             openPaqueteModal(){const m=this.modals.paquete;m.open=!0;m.cliente_id='';m.remitente='';m.pais='Estados Unidos';m.destinatario='';m.destino='';m.contenido='';m.peso=0.01},
             openTrackingModal(p){this.modals.estado.paquete=p;this.modals.estado.etiqueta='';this.modals.estado.descripcion='';this.modals.estado.ubicacion='';this.modals.estado.open=!0},
             editPaqueteEstado(p){this.modals.estado.paquete=p;this.modals.estado.etiqueta=p.estado_actual||'Recibido en USA';this.modals.estado.descripcion='';this.modals.estado.ubicacion='';this.modals.estado.open=!0},
-            async loadOperaciones(){try{this.opsView='kanban';const[pr,er,cl]=await Promise.all([fetch('/api/paquetes?per_page=500').then(r=>r.json()),fetch('/api/etiquetas').then(r=>r.json()),fetch('/api/clientes?per_page=500').then(r=>r.json())]);this.opsPaquetes=(pr?.data?.data||pr?.data||[]);this.opsEtiquetas=(er?.data||[]);if(!this.clientes.items.length&&cl?.data?.data)this.clientes.items=cl.data.data;const grupos={},colors={recibido_en_usa:'#f59e0b',en_transito:'#3b82f6',en_aduana:'#8b5cf6',en_destino:'#06b6d4',en_ruta_de_entrega:'#2563eb',entregado:'#10b981',devuelto:'#ef4444',retenido:'#dc2626'},orden=['recibido_en_usa','en_transito','en_aduana','en_destino','en_ruta_de_entrega','entregado','devuelto','retenido'];for(const k of orden)grupos[k]={color:colors[k]||'#94a3b8',items:[]};for(const p of this.opsPaquetes){const est=(p.estado_actual||'recibido_en_usa').toLowerCase().replace(/ /g,'_');if(grupos[est])grupos[est].items.push(p);else grupos.recibido_en_usa.items.push(p)}this.opsKanban=grupos;this.$nextTick(()=>lucide.createIcons())}catch(e){console.error('Error loading operaciones:',e);this.opsPaquetes=[]}},
-            async opsVerDetalle(p){this.modals.detalle.item=p;this.modals.detalle.tracking=[];this.modals.detalle.open=!0;try{const r=await fetch('/api/paquetes/'+p.id+'/tracking');const d=await r.json();this.modals.detalle.tracking=(d?.data||[]);this.$nextTick(()=>lucide.createIcons())}catch(e){console.error(e)}},
+            async loadOperaciones(){try{this.opsView='kanban';const[pr,er,cl]=await Promise.all([this.api('/api/paquetes?per_page=200').then(r=>r.json()),this.api('/api/etiquetas').then(r=>r.json()),this.api('/api/clientes?per_page=200').then(r=>r.json())]);this.opsPaquetes=(pr?.data?.data||pr?.data||[]);this.opsEtiquetas=(er?.data||[]);if(!this.clientes.items.length&&cl?.data?.data)this.clientes.items=cl.data.data;const grupos={},colors={recibido_en_usa:'#f59e0b',en_transito:'#3b82f6',en_aduana:'#8b5cf6',en_destino:'#06b6d4',en_ruta_de_entrega:'#2563eb',entregado:'#10b981',devuelto:'#ef4444',retenido:'#dc2626'},orden=['recibido_en_usa','en_transito','en_aduana','en_destino','en_ruta_de_entrega','entregado','devuelto','retenido'];for(const k of orden)grupos[k]={color:colors[k]||'#94a3b8',items:[]};for(const p of this.opsPaquetes){const est=(p.estado_actual||'recibido_en_usa').toLowerCase().replace(/ /g,'_');if(grupos[est])grupos[est].items.push(p);else grupos.recibido_en_usa.items.push(p)}this.opsKanban=grupos;this.$nextTick(()=>lucide.createIcons())}catch(e){console.error('Error loading operaciones:',e);this.opsPaquetes=[]}},
+            async opsVerDetalle(p){this.modals.detalle.item=p;this.modals.detalle.tracking=[];this.modals.detalle.open=!0;try{const r=await this.api('/api/paquetes/'+p.id+'/tracking');const d=await r.json();this.modals.detalle.tracking=(d?.data||[]);this.$nextTick(()=>lucide.createIcons())}catch(e){console.error(e)}},
             opsAvanzar(p){this.modals.avanzar.item=p;this.modals.avanzar.etiqueta='';this.modals.avanzar.descripcion='';this.modals.avanzar.ubicacion='';this.modals.avanzar.saving=!1;this.modals.avanzar.open=!0},
-            async opsConfirmarAvance(){if(!this.modals.avanzar.etiqueta){alert('Seleccione un estado');return}this.modals.avanzar.saving=!0;try{const r=await fetch('/api/paquetes/'+this.modals.avanzar.item.id+'/estado',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({etiqueta:this.modals.avanzar.etiqueta,descripcion:this.modals.avanzar.descripcion,ubicacion:this.modals.avanzar.ubicacion})});const d=await r.json();this.modals.avanzar.open=!1;this.loadOperaciones()}catch(e){console.error(e);alert('Error al actualizar estado')}finally{this.modals.avanzar.saving=!1}},
-            async opsRegistrarEnvio(){const f=this.opsForm;if(!f.cliente_id||!f.remitente||!f.destinatario||!f.destino){alert('Complete los campos obligatorios');return}f.saving=!0;try{const r=await fetch('/api/paquetes',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({cliente_id:parseInt(f.cliente_id),remitente_nombre:f.remitente,remitente_pais:f.remitente_pais,destinatario_nombre:f.destinatario,destinatario_direccion:f.destino,contenido:f.contenido,peso_kg:f.peso?parseFloat(f.peso):null,valor_declarado:f.valor?parseFloat(f.valor):null})});const d=await r.json();if(d.data){this.opsView='lista';this.opsForm={cliente_id:'',tracking:'',remitente:'',remitente_pais:'Estados Unidos',destinatario:'',destino:'',contenido:'',peso:'',valor:'',saving:!1};this.loadOperaciones()}else alert(d.error||'Error al registrar')}catch(e){console.error(e);alert('Error al registrar envio')}finally{f.saving=!1}},
+            async opsConfirmarAvance(){if(!this.modals.avanzar.etiqueta){alert('Seleccione un estado');return}this.modals.avanzar.saving=!0;try{const r=await this.api('/api/paquetes/'+this.modals.avanzar.item.id+'/estado',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({etiqueta:this.modals.avanzar.etiqueta,descripcion:this.modals.avanzar.descripcion,ubicacion:this.modals.avanzar.ubicacion})});const d=await r.json();this.modals.avanzar.open=!1;this.loadOperaciones()}catch(e){console.error(e);alert('Error al actualizar estado')}finally{this.modals.avanzar.saving=!1}},
+            async opsRegistrarEnvio(){const f=this.opsForm;if(!f.cliente_id||!f.remitente||!f.destinatario||!f.destino){alert('Complete los campos obligatorios');return}f.saving=!0;try{const r=await this.api('/api/paquetes',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({cliente_id:f.cliente_id,remitente_nombre:f.remitente,remitente_pais:f.remitente_pais,destinatario_nombre:f.destinatario,destinatario_direccion:f.destino,contenido:f.contenido,peso_kg:f.peso?parseFloat(f.peso):null,valor_declarado:f.valor?parseFloat(f.valor):null})});const d=await r.json();if(d.data){this.opsView='lista';this.opsForm={cliente_id:'',tracking:'',remitente:'',remitente_pais:'Estados Unidos',destinatario:'',destino:'',contenido:'',peso:'',valor:'',saving:!1};this.loadOperaciones()}else alert(d.error||'Error al registrar')}catch(e){console.error(e);alert('Error al registrar envio')}finally{f.saving=!1}},
         }}
     </script>
     <script src="/lib/alpine.min.js"></script>
-    <script src="/lib/tailwind.min.js" defer></script>
+    <link href="/lib/tailwind.css" rel="stylesheet">
     <script src="https://unpkg.com/lucide@latest" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js" defer></script>
     <script>
@@ -568,6 +573,62 @@
                                 <div><p class="kpi-label text-xs">Clientes</p><p class="text-lg font-bold text-slate-800" x-text="stats.total_clientes ?? 0"></p></div>
                                 <div><p class="kpi-label text-xs">Entregados</p><p class="text-lg font-bold text-slate-800" x-text="stats.paquetes_entregados ?? 0"></p></div>
                                 <div><p class="kpi-label text-xs">Prospectos</p><p class="text-lg font-bold text-slate-800" x-text="stats.total_prospectos ?? 0"></p></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- AUDITORIA -->
+                    <div x-show="tab === 'auditoria'" class="space-y-6 fade-in">
+                        <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+                            <h2 class="text-lg font-bold text-slate-800">Registro de Auditoria</h2>
+                            <div class="flex gap-2">
+                                <select x-model="audit.tabla" @change="audit.page=1;loadAudit()" class="text-xs border rounded px-2 py-1.5">
+                                    <option value="">Todas las tablas</option>
+                                    <option value="clientes">Clientes</option>
+                                    <option value="paquetes">Paquetes</option>
+                                    <option value="usuarios">Usuarios</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="card overflow-hidden">
+                            <template x-if="!audit.items.length">
+                                <p class="text-sm text-slate-500 p-6 text-center">No hay registros de auditoria</p>
+                            </template>
+                            <template x-if="audit.items.length">
+                                <div class="overflow-x-auto">
+                                    <table class="w-full text-xs">
+                                        <thead class="bg-slate-50 text-slate-600 uppercase tracking-wider">
+                                            <tr>
+                                                <th class="text-left px-3 py-2 font-medium">Fecha</th>
+                                                <th class="text-left px-3 py-2 font-medium">Tabla</th>
+                                                <th class="text-left px-3 py-2 font-medium">Accion</th>
+                                                <th class="text-left px-3 py-2 font-medium">Registro</th>
+                                                <th class="text-left px-3 py-2 font-medium">Detalle</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody class="divide-y divide-slate-100">
+                                            <template x-for="a in audit.items" :key="a.id">
+                                                <tr class="hover:bg-slate-50">
+                                                    <td class="px-3 py-2.5 text-slate-600 whitespace-nowrap" x-text="formatDate(a.created_at)"></td>
+                                                    <td class="px-3 py-2.5"><span class="badge bg-slate-100 text-slate-600" x-text="a.tabla"></span></td>
+                                                    <td class="px-3 py-2.5">
+                                                        <span x-show="a.accion==='CREATE'" class="badge bg-emerald-100 text-emerald-700">CREADO</span>
+                                                        <span x-show="a.accion==='UPDATE'" class="badge bg-amber-100 text-amber-700">ACTUALIZADO</span>
+                                                        <span x-show="a.accion==='DELETE'" class="badge bg-red-100 text-red-700">ELIMINADO</span>
+                                                        <span x-show="a.accion==='RESTORE'" class="badge bg-blue-100 text-blue-700">RESTAURADO</span>
+                                                    </td>
+                                                    <td class="px-3 py-2.5 text-slate-600 font-mono text-[10px]" x-text="a.registro_id?.slice(0,8)||'--'"></td>
+                                                    <td class="px-3 py-2.5 text-slate-500 max-w-[300px] truncate" x-text="JSON.stringify(a.valores_nuevos||a.valores_anteriores||'')"></td>
+                                                </tr>
+                                            </template>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </template>
+                            <div class="flex items-center justify-between px-3 py-2 border-t border-slate-100 bg-slate-50/50">
+                                <button @click="audit.page=Math.max(1,audit.page-1);loadAudit()" class="btn-xs" :disabled="audit.page<=1">Anterior</button>
+                                <span class="text-[10px] text-slate-500" x-text="'Pagina '+audit.page+' de '+audit.totalPages"></span>
+                                <button @click="audit.page++;loadAudit()" class="btn-xs" :disabled="audit.page>=audit.totalPages">Siguiente</button>
                             </div>
                         </div>
                     </div>

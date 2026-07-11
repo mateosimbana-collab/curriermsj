@@ -1,5 +1,12 @@
+"""
+Compatibility layer that unifies the bot's repository with the backend repo.
+Extends backend's SupabaseRepository, adding bot-specific methods
+(FAQ, reports, old session management) while delegating shared logic.
+"""
 import json
 import logging
+import sys
+import os
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 from urllib.parse import quote
@@ -10,6 +17,12 @@ import httpx
 import config
 from domain.constants import Step
 
+# Import backend's repository as base
+BACKEND_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "backend")
+if BACKEND_DIR not in sys.path:
+    sys.path.insert(0, BACKEND_DIR)
+
+from infrastructure.supabase_repository import SupabaseRepository as BackendRepo  # type: ignore
 
 logger = logging.getLogger(__name__)
 
@@ -19,14 +32,17 @@ except Exception:
     BUSINESS_TZ = timezone.utc
 
 
-class SupabaseRepository:
-    def __init__(
-        self,
-        supabase_url: str = config.SUPABASE_URL,
-        supabase_key: str = config.SUPABASE_KEY,
-    ) -> None:
-        self.supabase_url = supabase_url.rstrip("/")
-        self.supabase_key = supabase_key
+class SupabaseRepository(BackendRepo):
+    """Bot repository that extends the backend repo with bot-specific methods."""
+
+    def __init__(self):
+        # Initialize parent with env vars from bot config
+        import config as bot_config
+        os.environ.setdefault("SUPABASE_URL", bot_config.SUPABASE_URL)
+        os.environ.setdefault("SUPABASE_KEY", bot_config.SUPABASE_KEY)
+        super().__init__()
+        self.supabase_url = os.environ["SUPABASE_URL"]
+        self.supabase_key = os.environ["SUPABASE_KEY"]
         self.table_envios = config.SUPABASE_TABLE_ENVIOS
         self.table_estado = config.SUPABASE_TABLE_ESTADO
         self.table_faq = config.SUPABASE_TABLE_FAQ
@@ -42,99 +58,75 @@ class SupabaseRepository:
             "Prefer": "return=representation",
         }
 
+    # --- Bot-specific methods using old tables ---
+
     def get_client(self, phone_number: str) -> Optional[dict[str, Any]]:
-        url = f"{self._table(self.table_clientes)}?phone_number=eq.{quote(phone_number)}&limit=1"
-        data = self._request("GET", url)
-        return data[0] if data else None
+        """Lookup client by phone using new schema."""
+        return self.buscar_cliente_por_telefono(phone_number)
 
     def save_client(self, phone_number: str, nombre: str, apellido: str = "", ciudad: str = "", telefono_contacto: str = "") -> dict[str, Any]:
-        payload = {
-            "phone_number": phone_number,
-            "nombre": nombre,
-            "apellido": apellido,
+        """Save client using new schema."""
+        data = {
+            "telefono": phone_number,
+            "nombre_completo": f"{nombre} {apellido}".strip(),
             "ciudad": ciudad,
-            "telefono_contacto": telefono_contacto,
-            "registrado_en": datetime.utcnow().isoformat(),
+            "tipo_cliente": "regular",
         }
-        data = self._request("POST", self._table(self.table_clientes), json=payload)
-        return data[0] if data else {}
+        existing = self.buscar_cliente_por_telefono(phone_number)
+        if existing:
+            self.actualizar_cliente(existing["id"], data)
+            return self.buscar_cliente_por_telefono(phone_number) or {}
+        return self.crear_cliente(data) or {}
 
     def get_user_state(self, phone_number: str) -> Optional[dict[str, Any]]:
-        url = f"{self._table(self.table_estado)}?phone_number=eq.{quote(phone_number)}&limit=1"
-        data = self._request("GET", url)
-        return data[0] if data else None
+        """Get WhatsApp session using new schema."""
+        return self.obtener_sesion(phone_number)
 
-    def create_user_state(
-        self,
-        phone_number: str,
-        step: str = Step.MENU,
-        data: Optional[dict[str, Any]] = None,
-    ) -> dict[str, Any]:
-        existing = self.get_user_state(phone_number)
-        if existing:
-            self.update_user_state(phone_number, step, data)
-            return existing
-        payload = {
-            "phone_number": phone_number,
-            "paso_actual": step,
-            "datos_temp": data or {},
-            "updated_at": datetime.utcnow().isoformat(),
-        }
-        try:
-            response = self._request("POST", self._table(self.table_estado), json=payload)
-            return response[0] if response else {}
-        except httpx.HTTPStatusError as exc:
-            if exc.response.status_code == 409:
-                self.update_user_state(phone_number, step, data)
-                updated = self.get_user_state(phone_number)
-                return updated if updated else {}
-            raise
+    def create_user_state(self, phone_number: str, step: str = Step.MENU, data: Optional[dict[str, Any]] = None) -> dict[str, Any]:
+        self.guardar_sesion(phone_number, step, data or {})
+        return self.obtener_sesion(phone_number) or {}
 
-    def update_user_state(
-        self,
-        phone_number: str,
-        step: Optional[str] = None,
-        data: Optional[dict[str, Any]] = None,
-    ) -> None:
-        payload: dict[str, Any] = {"updated_at": datetime.utcnow().isoformat()}
+    def update_user_state(self, phone_number: str, step: Optional[str] = None, data: Optional[dict[str, Any]] = None) -> None:
+        current = self.obtener_sesion(phone_number)
+        if not current:
+            self.guardar_sesion(phone_number, step or Step.MENU, data)
+            return
+        payload = {}
         if step is not None:
             payload["paso_actual"] = step
         if data is not None:
             payload["datos_temp"] = data
-
-        url = f"{self._table(self.table_estado)}?phone_number=eq.{quote(phone_number)}"
-        self._request("PATCH", url, json=payload)
+        if payload:
+            self.client.table("sesiones_whatsapp").update(payload).eq("telefono", phone_number).execute()
 
     def reset_user_state(self, phone_number: str) -> None:
         self.update_user_state(phone_number, Step.MENU, {})
 
     def get_temp_data(self, phone_number: str) -> dict[str, Any]:
-        state = self.get_user_state(phone_number)
+        state = self.obtener_sesion(phone_number)
         return self.extract_temp_data(state)
 
     def save_temp_data(self, phone_number: str, data: dict[str, Any]) -> None:
         self.update_user_state(phone_number, data=data)
 
     def search_faq(self, question: str) -> Optional[str]:
+        """Search FAQ (old table, if it exists)."""
         raw = (question or "").strip()
         if not raw:
             return None
+        try:
+            query = quote(raw, safe="")
+            url = (
+                f"{self._table_url(self.table_faq)}"
+                f"?select=respuesta&pregunta=ilike.%25{query}%25&limit=1"
+            )
+            result = self._request("GET", url)
+            return result[0]["respuesta"] if result else None
+        except Exception:
+            return None
 
-        query = quote(raw, safe="")
-        url = (
-            f"{self._table(self.table_faq)}"
-            f"?select=respuesta&pregunta=ilike.%25{query}%25&limit=1"
-        )
-        data = self._request("GET", url)
-        return data[0]["respuesta"] if data else None
-
-    def save_report(
-        self,
-        phone_number: str,
-        description: str,
-        category: Optional[str] = None,
-        tracking_code: Optional[str] = None,
-    ) -> int:
+    def save_report(self, phone_number: str, description: str, category: Optional[str] = None, tracking_code: Optional[str] = None) -> int:
+        """Save report (old table, if it exists)."""
         payload = {
             "phone_number": phone_number,
             "descripcion": description,
@@ -144,162 +136,76 @@ class SupabaseRepository:
             "agente_asignado": "Equipo soporte",
             "creado_en": datetime.utcnow().isoformat(),
         }
-        data = self._request("POST", self._table(self.table_reportes), json=payload)
-        item = data[0] if isinstance(data, list) else data
-        return int(item["id"])
+        try:
+            data = self._request("POST", self._table_url(self.table_reportes), json=payload)
+            item = data[0] if isinstance(data, list) else data
+            return int(item["id"])
+        except Exception:
+            return 0
 
-    def save_shipment(self, shipment_data: dict[str, Any]) -> int:
-        payload = dict(shipment_data)
-        payload["creado_en"] = datetime.utcnow().isoformat()
-        data = self._request("POST", self._table(self.table_envios), json=payload)
-        item = data[0] if isinstance(data, list) else data
-        return int(item["id"])
+    def save_shipment(self, shipment_data: dict[str, Any]) -> str:
+        """Save shipment using new schema. Returns tracking_code (auto-generated by DB trigger)."""
+        data = dict(shipment_data)
+        data["created_at"] = datetime.utcnow().isoformat()
+        mapped = {
+            "cliente_id": data.get("cliente_id"),
+            "remitente_nombre": data.get("remitente_nombre") or data.get("remitente", ""),
+            "remitente_telefono": data.get("remitente_telefono") or data.get("telefono_remitente", ""),
+            "remitente_pais": data.get("remitente_pais") or data.get("pais_origen", "Estados Unidos"),
+            "destinatario_nombre": data.get("destinatario_nombre") or data.get("destinatario", ""),
+            "destinatario_telefono": data.get("destinatario_telefono") or data.get("telefono_destinatario", ""),
+            "destinatario_direccion": data.get("destinatario_direccion") or data.get("direccion_destino") or "",
+            "contenido": data.get("contenido") or data.get("tipo_paquete", ""),
+            "peso_kg": data.get("peso_kg") if data.get("peso_kg") is not None else data.get("peso"),
+            "instrucciones": data.get("instrucciones"),
+            "estado_actual": data.get("estado_actual") or data.get("estado", "recibido"),
+            "created_at": data["created_at"],
+        }
+        mapped = {k: v for k, v in mapped.items() if v is not None}
+        res = self.client.table("paquetes").insert(mapped).execute()
+        if not res.data:
+            return ""
+        # DB trigger auto-generates tracking_code; fetch it back
+        inserted_id = res.data[0]["id"]
+        fetch = self.client.table("paquetes").select("tracking_code").eq("id", inserted_id).limit(1).execute()
+        return fetch.data[0]["tracking_code"] if fetch.data else ""
 
     def get_shipments_by_phone(self, phone_number: str, limit: int = 10) -> list[dict[str, Any]]:
-        columns = ",".join(
-            [
-                "id",
-                "tracking_code",
-                "remitente",
-                "destinatario",
-                "direccion_destino",
-                "tipo_paquete",
-                "peso",
-                "estado",
-                "servicio_envio",
-                "valor_cotizado",
-                "entrega_estimada",
-                "imagen_url",
-                "creado_en",
-            ]
+        """Get shipments by client phone using new schema."""
+        client = self.buscar_cliente_por_telefono(phone_number)
+        if not client:
+            return []
+        res = (
+            self.client.table("paquetes")
+            .select("*")
+            .eq("cliente_id", client["id"])
+            .is_("deleted_at", "null")
+            .order("created_at", desc=True)
+            .limit(limit)
+            .execute()
         )
-        url = (
-            f"{self._table(self.table_envios)}?select={columns}"
-            f"&phone_number=eq.{quote(phone_number)}"
-            f"&order=creado_en.desc&limit={limit}"
-        )
-        return self._request("GET", url)
+        return res.data
 
     def get_shipment_by_id(self, shipment_id: int) -> Optional[dict[str, Any]]:
-        url = f"{self._table(self.table_envios)}?select=*&id=eq.{shipment_id}&limit=1"
-        data = self._request("GET", url)
-        return data[0] if data else None
+        res = (
+            self.client.table("paquetes")
+            .select("*")
+            .eq("id", shipment_id)
+            .is_("deleted_at", "null")
+            .limit(1)
+            .execute()
+        )
+        return res.data[0] if res.data else None
 
     def get_shipment_by_tracking(self, tracking_code: str) -> Optional[dict[str, Any]]:
-        tracking = tracking_code.strip().upper().replace("#", "")
-        url = (
-            f"{self._table(self.table_envios)}?select=*"
-            f"&tracking_code=eq.{quote(tracking)}&limit=1"
-        )
-        data = self._request("GET", url)
-        if data:
-            return data[0]
-
-        if tracking.startswith("CUR-"):
-            try:
-                return self.get_shipment_by_id(int(tracking.replace("CUR-", "")))
-            except ValueError:
-                return None
-        if tracking.isdigit():
-            return self.get_shipment_by_id(int(tracking))
-        return None
+        return self.buscar_paquete_por_tracking(tracking_code)
 
     def get_dashboard_stats(self) -> dict[str, Any]:
-        now_local = datetime.now(BUSINESS_TZ)
-        today_start_local = now_local.replace(hour=0, minute=0, second=0, microsecond=0)
-        today_start_utc = today_start_local.astimezone(timezone.utc).isoformat()
-        active_since_utc = (now_local - timedelta(hours=24)).astimezone(timezone.utc).isoformat()
-        chart_start_local = today_start_local - timedelta(days=13)
-        chart_start_utc = chart_start_local.astimezone(timezone.utc).isoformat()
-
-        total_shipments = len(self._request("GET", f"{self._table(self.table_envios)}?select=id"))
-        shipments_today = len(self._request(
-            "GET",
-            f"{self._table(self.table_envios)}?select=id"
-            f"&creado_en=gte.{quote(today_start_utc)}&order=creado_en.desc&limit=500",
-        ))
-        active_users = len(self._request(
-            "GET",
-            f"{self._table(self.table_estado)}?select=phone_number"
-            f"&updated_at=gte.{quote(active_since_utc)}",
-        ))
-
-        total_reports = len(self._request("GET", f"{self._table(self.table_reportes)}?select=id"))
-        open_reports = len(self._request(
-            "GET",
-            f"{self._table(self.table_reportes)}?select=id&estado=eq.abierto",
-        ))
-
-        recent = self._request(
-            "GET",
-            f"{self._table(self.table_envios)}?select=id,tracking_code,remitente,destinatario"
-            f",direccion_destino,estado,servicio_envio,valor_cotizado,phone_number,creado_en"
-            f"&order=creado_en.desc&limit=30",
-        )
-
-        state_users = self._request(
-            "GET",
-            f"{self._table(self.table_estado)}?select=phone_number,paso_actual,updated_at"
-            f"&order=updated_at.desc&limit=15",
-        )
-
-        chart_rows = self._request(
-            "GET",
-            f"{self._table(self.table_envios)}?select=creado_en"
-            f"&creado_en=gte.{quote(chart_start_utc)}&order=creado_en.asc&limit=1000",
-        )
-        shipments_by_day = self._build_daily_counts(chart_start_local, 14, chart_rows)
-
-        return {
-            "total_shipments": total_shipments,
-            "shipments_today": shipments_today,
-            "active_users": active_users,
-            "total_reports": total_reports,
-            "open_reports": open_reports,
-            "recent_shipments": recent,
-            "active_sessions": state_users,
-            "shipments_by_day": shipments_by_day,
-        }
-
-    def _build_daily_counts(
-        self,
-        start_local: datetime,
-        days: int,
-        rows: list[dict[str, Any]],
-    ) -> list[dict[str, Any]]:
-        counts: dict[str, int] = {}
-        for offset in range(days):
-            key = (start_local + timedelta(days=offset)).date().isoformat()
-            counts[key] = 0
-
-        for row in rows:
-            created = self._parse_datetime(row.get("creado_en"))
-            if not created:
-                continue
-            key = created.astimezone(BUSINESS_TZ).date().isoformat()
-            if key in counts:
-                counts[key] += 1
-
-        return [{"date": key, "count": value} for key, value in counts.items()]
-
-    @staticmethod
-    def _parse_datetime(value: Any) -> Optional[datetime]:
-        if not value:
-            return None
-        try:
-            text = str(value).replace("Z", "+00:00")
-            parsed = datetime.fromisoformat(text)
-            if parsed.tzinfo is None:
-                return parsed.replace(tzinfo=timezone.utc)
-            return parsed
-        except ValueError:
-            logger.warning("Fecha invalida recibida desde Supabase: %s", value)
-            return None
+        return super().get_dashboard_stats()
 
     def extract_temp_data(self, state: Optional[dict[str, Any]]) -> dict[str, Any]:
         if not state or not state.get("datos_temp"):
             return {}
-
         raw = state["datos_temp"]
         if isinstance(raw, str):
             try:
@@ -311,17 +217,15 @@ class SupabaseRepository:
             return raw
         return {}
 
-    def _table(self, table_name: str) -> str:
+    def _table_url(self, table_name: str) -> str:
         return f"{self.supabase_url}/rest/v1/{table_name}"
 
     def _request(self, method: str, url: str, headers: Optional[dict[str, str]] = None, **kwargs: Any) -> Any:
         if not self.supabase_url or not self.supabase_key:
-            raise RuntimeError("Supabase no configurado: faltan SUPABASE_URL o SUPABASE_KEY")
-
+            raise RuntimeError("Supabase no configurado")
         request_headers = self.headers
         if headers:
             request_headers = {**self.headers, **headers}
-
         with httpx.Client(timeout=10) as client:
             response = client.request(method, url, headers=request_headers, **kwargs)
             response.raise_for_status()
