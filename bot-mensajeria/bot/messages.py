@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Any
 
 import config
-from domain.constants import REPORT_CATEGORIES, SHIPPING_SERVICES, STATUS_STEPS
+from domain.constants import SHIPPING_SERVICES, STATUS_STEPS
 
 
 LINE = "--------------------"
@@ -184,6 +184,8 @@ class MessageTemplates:
             f"Destino: *{_value(destino)}*\n"
             f"Peso: *{_value(peso)}*\n"
             f"Contenido: *{_value(shipment.get('contenido'), 'No especificado')}*\n"
+            f"Servicio: *{_value(shipment.get('servicio_envio'))}*\n"
+            f"Entrega estimada: *{_value(shipment.get('entrega_estimada'))}*\n"
             f"{LINE}\n"
             f"*ESTADO: {status_label}*\n"
             f"{_status_lines(status)}\n"

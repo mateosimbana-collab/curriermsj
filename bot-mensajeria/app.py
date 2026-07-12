@@ -1,4 +1,12 @@
+# ruff: noqa: E402
 import logging
+import sys
+from pathlib import Path
+
+# Running this file directly requires the repository root before shared imports.
+PROJECT_DIR = str(Path(__file__).resolve().parent.parent)
+if PROJECT_DIR not in sys.path:
+    sys.path.insert(0, PROJECT_DIR)
 
 import config
 from bot.courier_bot import CourierBot

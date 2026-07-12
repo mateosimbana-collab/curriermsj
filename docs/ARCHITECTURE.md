@@ -1,79 +1,196 @@
-# CurrierMsj — Sistema de Gestión Courier
+# Arquitectura de CurrierMsj
 
-## Arquitectura del Sistema
+CurrierMsj integra administracion courier, seguimiento de paquetes y atencion por WhatsApp para la ruta Estados Unidos a Ecuador. El repositorio conserva la plataforma unificada y el modo operativo historico porque ambos tienen funciones activas.
 
-### Stack Tecnológico
-- **Backend:** Python 3.12+ / Flask (REST API)
-- **Base de Datos:** PostgreSQL v15+ (Supabase)
-- **Frontend:** HTML + TailwindCSS + Chart.js + AlpineJS
-- **WhatsApp:** Meta Cloud API v20.0
-- **Autenticación:** JWT con flask-jwt-extended
-- **ORM/DB:** Supabase REST API + SQL directo
+## Superficies ejecutables
 
-### Capas (Clean Architecture)
+| Modo | Entrada | Interfaz | Acceso |
+|---|---|---|---|
+| Plataforma unificada | `run.py` | `frontend/index.html` | JWT HS256 y roles |
+| Servidor legado | `bot-mensajeria/app.py` | `dashboard/owner.html` y `dashboard/support.html` | HTTP Basic configurable |
+| Dashboard React | `dashboard/react.html` | Vite, React y Chakra UI | Proxy local o cliente Supabase publico |
 
-```
-┌─────────────────────────────────────┐
-│         interfaces/api              │  ← Rutas Flask, DTOs, Webhooks
-├─────────────────────────────────────┤
-│         application/                │  ← Casos de uso, servicios
-├─────────────────────────────────────┤
-│         domain/                     │  ← Entidades, Value Objects, Reglas
-├─────────────────────────────────────┤
-│         infrastructure/             │  ← Repositorios Supabase, Clientes HTTP
-└─────────────────────────────────────┘
-```
+Los modos unificado y legado comparten `CourierBot`, `WhatsAppClient` y la logica de conversacion. El adaptador `bot-mensajeria/services/supabase_repository.py` conserva el contrato historico del bot mientras usa el repositorio unificado cuando corresponde.
 
-### Módulos del Sistema
+## Topologia
 
-| Módulo | Descripción |
-|--------|-------------|
-| **Dashboard** | KPIs, gráficas, métricas en tiempo real |
-| **Clientes** | Registro, grupos, mayoristas, prospectos |
-| **Casilleros** | Gestión de casilleros virtuales |
-| **Paquetes** | Recepción, tracking, estados, despacho |
-| **Usuarios** | Administradores, roles, permisos |
-| **Reportes** | Exportación CSV/XLSX, estadísticas |
-| **WhatsApp** | Bot, notificaciones, consultas |
-| **Auditoría** | Logs de cambios, trazabilidad |
-| **Configuración** | Parámetros del sistema |
+```mermaid
+flowchart LR
+    Admin[Administrador] --> UI[Panel unificado]
+    Owner[Dueno o soporte] --> LegacyUI[Paneles legado]
+    ReactUser[Usuario React] --> ReactUI[Dashboard React]
+    Customer[Cliente] --> Meta[Meta Cloud API]
 
-### Flujo Principal
+    UI -->|JWT| API[API Flask]
+    LegacyUI -->|HTTP Basic| LegacyAPI[Servidor Flask legado]
+    ReactUI --> ReactClient[Cliente Supabase]
+    Meta -->|Webhook HMAC| Hook[Webhook Flask]
 
-```
-WhatsApp → Webhook → Bot (procesa mensaje)
-                     ↓
-              API REST → Supabase
-                     ↓
-              Responde vía WhatsApp
+    API --> Repo[SupabaseRepository]
+    LegacyAPI --> Adapter[Repositorio compatible]
+    Hook --> Bot[CourierBot]
+    Bot --> Adapter
+    Adapter --> Repo
+    Repo --> DB[(Supabase PostgreSQL)]
+    ReactClient --> DB
+    Bot --> WhatsApp[WhatsAppClient]
+    WhatsApp --> Meta
 ```
 
-```
-Admin → Frontend Dashboard → API REST → Supabase
+## Capas
+
+| Capa | Directorio | Responsabilidad |
+|---|---|---|
+| Entrada y configuracion | `run.py`, `backend/config/` | Crear Flask, cargar limites, CORS y blueprints |
+| Interfaces | `backend/interfaces/` | API REST, autenticacion, roles y webhook |
+| Aplicacion | `backend/application/` | Autenticacion y emision de tokens |
+| Infraestructura | `backend/infrastructure/` | Persistencia y consultas a Supabase |
+| Seguridad compartida | `backend/security.py` | Comparacion constante, firma Meta y Basic Auth legado |
+| Bot | `bot-mensajeria/bot/` | Maquina de estados y casos conversacionales |
+| Dominio del bot | `bot-mensajeria/domain/` | Mensajes de entrada, estados, tarifas y servicios |
+| Compatibilidad | `bot-mensajeria/services/` | Cliente de Meta y adaptacion entre esquemas |
+| Datos | `database/` | Migraciones, administrador inicial y migracion historica |
+| Presentacion | `frontend/`, `dashboard/` | Panel unificado, paneles HTML y dashboard React |
+
+## Componentes principales
+
+```mermaid
+classDiagram
+    class FlaskApp {
+        +create_app()
+        +register_blueprint()
+    }
+    class ApiBlueprint {
+        +login()
+        +listar_clientes()
+        +crear_paquete()
+        +actualizar_estado()
+        +exportar_reportes()
+    }
+    class AuthService {
+        +login(email, password)
+        +generar_token(usuario, secret)
+    }
+    class SupabaseRepository {
+        +buscar_usuario_por_email()
+        +listar_clientes()
+        +crear_cliente()
+        +listar_paquetes()
+        +actualizar_estado_paquete()
+        +get_dashboard_stats()
+    }
+    class CourierBot {
+        +process(event)
+        +handle_menu()
+        +handle_tracking_code()
+        +handle_new_shipment_confirm()
+    }
+    class BotRepositoryAdapter {
+        +get_user_state()
+        +save_client()
+        +save_shipment()
+        +save_report()
+    }
+    class WhatsAppClient {
+        +send_text()
+        +send_buttons()
+        +send_list()
+        +send_image()
+    }
+    class WebhookParser {
+        +parse(payload)
+    }
+
+    FlaskApp --> ApiBlueprint
+    ApiBlueprint --> AuthService
+    AuthService --> SupabaseRepository
+    ApiBlueprint --> SupabaseRepository
+    CourierBot --> BotRepositoryAdapter
+    BotRepositoryAdapter --> SupabaseRepository
+    CourierBot --> WhatsAppClient
+    FlaskApp --> WebhookParser
+    WebhookParser --> CourierBot
 ```
 
-### Base de Datos (Entidades Principales)
+## Flujos
 
-```
-usuarios ──┐
-           ├── clientes ──┬── paquetes ──┬── tracking_events
-           │              │              └── imagenes
-           │              ├── historial_cambios
-           │              └── notificaciones
-           │
-           ├── grupos_clientes
-           ├── mayoristas
-           ├── prospectos
-           └── casilleros_virtuales
+### Administracion unificada
+
+```text
+Navegador -> POST /api/auth/login -> AuthService -> usuarios en Supabase
+          <- JWT de 8 horas
+Navegador -> API protegida + Bearer JWT -> validacion de rol -> repositorio -> Supabase
 ```
 
-### Reglas de Negocio Clave
+### WhatsApp
 
-1. No se usan números de casillero → identificación por nombre + cédula
-2. Estados mediante etiquetas configurables
-3. Clientes tipo grupo comparten paquetes
-4. Cotizaciones solo por operador humano (nunca automáticas)
-5. Aprobación obligatoria antes del despacho
-6. No interferir con llamadas simultáneas de WhatsApp Business
-7. Soft delete en todas las tablas principales
-8. Auditoría completa de cambios
+```text
+Meta -> POST /webhook -> firma X-Hub-Signature-256 -> parser -> CourierBot
+     -> estado de sesion -> repositorio -> Supabase -> WhatsAppClient -> Meta
+```
+
+### Operacion legado
+
+```text
+Dueno/soporte -> HTTP Basic -> panel HTML -> endpoint legado
+              -> repositorio compatible -> tablas historicas o esquema unificado
+```
+
+## Modelo de datos
+
+El modelo unificado esta en `database/migrations/`. Sus grupos principales son:
+
+| Area | Tablas |
+|---|---|
+| Acceso | `usuarios` |
+| Clientes | `clientes`, `grupos_clientes`, `mayoristas`, `prospectos` |
+| Logistica | `paquetes`, `tracking_events`, `imagenes_paquete`, `etiquetas_estado` |
+| Comunicacion | `sesiones_whatsapp`, `notificaciones`, `faq`, `reportes` |
+| Control | `configuracion`, `audit_log`, `reportes_generados` |
+
+La normalizacion sigue 3FN de forma practica:
+
+- Cada entidad representa un concepto y usa una clave primaria propia.
+- Las relaciones usan claves foraneas en vez de repetir datos maestros.
+- El historial de tracking esta separado del paquete.
+- Los grupos, mayoristas, prospectos y sesiones no se incrustan en `clientes`.
+- `estado_actual` es una cache deliberada del ultimo evento para consultas operativas.
+- Remitente, destinatario y direcciones quedan como fotografia historica del envio.
+
+El archivo `bot-mensajeria/supabase_schema.sql` corresponde al esquema anterior (`envios`, `estado_usuario` y tablas financieras). Se conserva para instalaciones existentes y datos de prueba. Una instalacion nueva debe usar las migraciones `001` a `004`.
+
+## Limites de seguridad
+
+| Limite | Control |
+|---|---|
+| Panel unificado a API | JWT, expiracion, roles y allowlist de campos |
+| Meta a webhook | Verify token en `GET` y firma HMAC SHA-256 en `POST` |
+| Panel legado a servidor | HTTP Basic sin credenciales predeterminadas |
+| Datos dinamicos a HTML legado | Escape por interpolacion y allowlist DOM compartida |
+| Backend a Supabase | Clave de servicio solo en servidor y RLS en base |
+| Dashboard React a Supabase | Solo credenciales publicas permitidas por RLS |
+| Tracking publico | Respuesta separada sin cedula, telefono ni notas internas |
+
+El backend agrega cabeceras de seguridad, limita el cuerpo a 1 MiB, restringe CORS por origen exacto y neutraliza formulas al exportar CSV. En produccion tambien se requieren TLS, rate limiting compartido, gestion de secretos, backups y monitoreo.
+
+## Reglas de negocio conservadas
+
+1. La identificacion operativa del cliente usa nombre y cedula; no depende de un numero de casillero.
+2. Los estados del paquete se registran como eventos de tracking.
+3. Los grupos pueden asociar clientes relacionados sin duplicarlos.
+4. Los envios conservan los datos historicos del remitente y destinatario.
+5. Los cambios sensibles quedan disponibles para auditoria.
+6. El bot no interfiere con llamadas simultaneas de WhatsApp Business.
+7. Las tablas principales usan eliminacion logica donde aplica.
+8. El panel financiero legado, soporte, logs y pruebas siguen siendo funcionalidades soportadas.
+
+## Decisiones de compatibilidad
+
+- No se elimino `dashboard/`: contiene el proyecto React y los paneles HTML usados por el servidor legado.
+- `dashboard/index.html` conserva la interfaz HTML y `dashboard/react.html` enlaza el arbol React; Vite construye ambas entradas.
+- No se eliminaron los scripts de datos ni `supabase_schema.sql`: se documentaron como herramientas exclusivas del esquema historico.
+- No se duplico la logica de seguridad del webhook: ambos servidores usan `backend/security.py`.
+- No se obliga a ejecutar ambos servidores. Cada despliegue elige el modo necesario.
+- Los modulos sin imports ni rutas activas pueden eliminarse solo despues de comprobar referencias y pruebas.
+
+Los diagramas de casos de uso, secuencias, estados y entidad-relacion completos estan en `../README.md`.

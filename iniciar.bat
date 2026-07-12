@@ -12,20 +12,26 @@ if exist ".env" (
 )
 
 echo.
-echo [1/3] Verificando ngrok...
-curl -s http://127.0.0.1:4040/api/tunnels >nul 2>&1
+echo [1/3] Preparando entorno Python...
+if not exist ".venv\Scripts\python.exe" (
+    py -3 -m venv .venv
+)
+".venv\Scripts\python.exe" -c "import flask, httpx, jwt, requests, supabase" >nul 2>&1
 if %errorlevel% neq 0 (
-    echo ngrok no esta corriendo. Iniciando...
-    start "ngrok" cmd /c "ngrok http 5000"
-    echo Esperando 5 segundos para que ngrok se conecte...
-    timeout /t 5 /nobreak >nul
+    ".venv\Scripts\python.exe" -m pip install -r backend\requirements.txt
+    if %errorlevel% neq 0 exit /b 1
+)
+
+if /I "%START_NGROK%"=="1" (
+    curl -s http://127.0.0.1:4040/api/tunnels >nul 2>&1
+    if %errorlevel% neq 0 start "ngrok" cmd /c "ngrok http 5000"
 ) else (
-    echo ngrok ya esta corriendo.
+    echo ngrok omitido. Define START_NGROK=1 para habilitarlo.
 )
 
 echo.
 echo [2/3] Iniciando backend Flask (puerto 5000)...
-start "CurrierMsj Backend" cmd /k "py run.py"
+start "CurrierMsj Backend" cmd /k "".venv\Scripts\python.exe" run.py"
 
 timeout /t 3 /nobreak >nul
 

@@ -17,4 +17,7 @@ BEGIN
     ) INTO result;
     RETURN result;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SET search_path = public;
+
+REVOKE ALL ON FUNCTION dashboard_stats() FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION dashboard_stats() TO service_role;

@@ -1,10 +1,14 @@
 # -*- coding: utf-8 -*-
 """Migrate old envios to new paquetes/clientes/tracking_events"""
-import sys, io
-sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+import io
+import os
+import re
+import sys
+from datetime import datetime, timezone
 
-import requests, re, os, json, uuid
-from datetime import datetime
+import requests
+
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
 
 SUPABASE_URL = os.getenv("SUPABASE_URL", "")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY", "")
@@ -14,24 +18,30 @@ if not SUPABASE_URL or not SUPABASE_KEY:
 HEADERS = {"apikey": SUPABASE_KEY, "Authorization": f"Bearer {SUPABASE_KEY}", "Content-Type": "application/json", "Prefer": "return=representation"}
 
 def supabase_get(table, params=None):
-    r = requests.get(f"{SUPABASE_URL}/rest/v1/{table}", headers=HEADERS, params=params)
+    r = requests.get(f"{SUPABASE_URL}/rest/v1/{table}", headers=HEADERS, params=params, timeout=30)
     r.raise_for_status()
     return r.json()
 
 def supabase_post(table, data):
-    r = requests.post(f"{SUPABASE_URL}/rest/v1/{table}", headers=HEADERS, json=data)
+    r = requests.post(f"{SUPABASE_URL}/rest/v1/{table}", headers=HEADERS, json=data, timeout=30)
     if r.status_code == 201 or r.status_code == 200:
         return r.json() if r.text else [data]
     raise Exception(f"Error inserting into {table}: {r.status_code} {r.text}")
 
 def parse_peso(peso_label):
-    if not peso_label: return None
+    if not peso_label:
+        return None
     peso_clean = peso_label.lower().strip()
-    if "menos de 1" in peso_clean: return 0.5
-    if "1 - 5" in peso_clean: return 3.0
-    if "más de 5" in peso_clean or "mas de 5" in peso_clean: return 6.0
-    try: return float(re.sub(r'[^\d.]', '', peso_clean))
-    except: return None
+    if "menos de 1" in peso_clean:
+        return 0.5
+    if "1 - 5" in peso_clean:
+        return 3.0
+    if "más de 5" in peso_clean or "mas de 5" in peso_clean:
+        return 6.0
+    try:
+        return float(re.sub(r"[^\d.]", "", peso_clean))
+    except ValueError:
+        return None
 
 def map_estado(old_estado):
     mapping = {
@@ -104,8 +114,8 @@ for e in envios:
         "valor_declarado": float(e.get("valor_cotizado") or 0),
         "estado_actual": map_estado(e.get("estado", "pendiente")),
         "etiqueta_actual": None,
-        "created_at": e.get("creado_en", datetime.utcnow().isoformat()),
-        "updated_at": e.get("creado_en", datetime.utcnow().isoformat()),
+        "created_at": e.get("creado_en", datetime.now(timezone.utc).isoformat()),
+        "updated_at": e.get("creado_en", datetime.now(timezone.utc).isoformat()),
     }
     
     try:
@@ -119,7 +129,7 @@ for e in envios:
             "etiqueta": paquete["estado_actual"],
             "descripcion": f"Migrado desde sistema anterior. Estado original: '{e.get('estado', 'pendiente')}'",
             "ubicacion": "Migracion",
-            "created_at": e.get("creado_en", datetime.utcnow().isoformat()),
+            "created_at": e.get("creado_en", datetime.now(timezone.utc).isoformat()),
         }
         supabase_post("tracking_events", event)
         print(f"  Created tracking_event for {tracking}")

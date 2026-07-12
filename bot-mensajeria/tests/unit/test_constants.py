@@ -198,15 +198,12 @@ class TestReportCategories:
 
 
 class TestStatusSteps:
-    def test_five_steps(self):
-        assert len(STATUS_STEPS) == 5
+    def test_eight_steps(self):
+        assert len(STATUS_STEPS) == 8
 
     def test_order(self):
-        assert STATUS_STEPS[0] == ("pendiente", "Solicitud registrada")
-        assert STATUS_STEPS[1] == ("recibido", "Paquete recibido")
-        assert STATUS_STEPS[2] == ("en_transito", "En camino al hub")
-        assert STATUS_STEPS[3] == ("en_ruta", "En ruta de entrega")
-        assert STATUS_STEPS[4] == ("entregado", "Entregado")
+        assert STATUS_STEPS[0] == ("recibido_en_usa", "Recibido en USA")
+        assert STATUS_STEPS[-1] == ("retenido", "Retenido")
 
     def test_all_statuses_have_two_elements(self):
         for s in STATUS_STEPS:

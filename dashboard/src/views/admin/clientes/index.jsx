@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from "react"
+import React, { useState, useMemo } from "react"
 import {
   Box,
   Button,
@@ -7,17 +7,14 @@ import {
   Heading,
   Icon,
   Text,
-  useColorModeValue,
   Input,
   InputGroup,
   InputLeftElement,
-  Badge,
 } from "@chakra-ui/react"
 import {
   MdPeople,
   MdRefresh,
   MdSearch,
-  MdInventory2,
   MdPhone,
   MdLocationOn,
   MdCalendarToday,
@@ -29,7 +26,6 @@ export default function ClientesDashboard() {
   const { stats, loading, refetch } = useSystemStats()
   const { envios } = useEnvios()
   const [search, setSearch] = useState("")
-  const brandColor = useColorModeValue("brand.500", "brand.400")
 
   const clientesConEnvios = useMemo(() => {
     const clientes = stats.clientes || []

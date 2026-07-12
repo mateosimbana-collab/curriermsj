@@ -9,4 +9,7 @@ BEGIN
     GROUP BY p.estado_actual
     ORDER BY count DESC;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SET search_path = public;
+
+REVOKE ALL ON FUNCTION paquetes_por_estado() FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION paquetes_por_estado() TO service_role;

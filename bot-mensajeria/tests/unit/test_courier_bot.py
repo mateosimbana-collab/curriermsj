@@ -416,7 +416,7 @@ class TestHelpers:
             "entrega_estimada": "24h",
         }
         payload = bot._shipment_payload(data)
-        assert payload["remitente"] == "Juan"
-        assert payload["destinatario"] == "Maria"
-        assert payload["estado"] == "pendiente"
-        assert payload["valor_cotizado"] is None
+        assert payload["remitente_nombre"] == "Juan"
+        assert payload["destinatario_nombre"] == "Maria"
+        assert payload["estado_actual"] == "recibido_en_usa"
+        assert payload["destinatario_direccion"] == "UIO"

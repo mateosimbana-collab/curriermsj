@@ -7,15 +7,12 @@ import {
   Heading,
   Icon,
   Text,
-  useColorModeValue,
   Badge,
   Stack,
   Progress,
 } from "@chakra-ui/react"
 import {
   MdRefresh,
-  MdWarning,
-  MdCheckCircle,
   MdError,
   MdCloud,
   MdStorage,
@@ -118,7 +115,6 @@ function MetricCard({ label, value, subtitle, icon, color }) {
 }
 
 export default function ObservabilityDashboard() {
-  const brandColor = useColorModeValue("brand.500", "brand.400")
   const [mockData, setMockData] = useState(generateMockData)
 
   const refresh = useCallback(() => {

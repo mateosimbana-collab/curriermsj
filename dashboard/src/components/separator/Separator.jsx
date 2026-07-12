@@ -1,7 +1,7 @@
 import { Flex } from "@chakra-ui/react"
 
 export function HSeparator(props) {
-  const { variant, ...rest } = props
+  const { variant: _variant, ...rest } = props
   return (
     <Flex
       h="1px"
@@ -13,7 +13,7 @@ export function HSeparator(props) {
 }
 
 export function VSeparator(props) {
-  const { variant, ...rest } = props
+  const { variant: _variant, ...rest } = props
   return (
     <Flex
       w="1px"

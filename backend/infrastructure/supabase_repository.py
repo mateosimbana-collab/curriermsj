@@ -1,13 +1,15 @@
 import os
+import logging
+import re
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Optional
-from uuid import UUID
 
 from supabase import create_client, Client
 from dotenv import load_dotenv
 
 load_dotenv()
+logger = logging.getLogger(__name__)
 
 
 _repo_instance = None
@@ -29,6 +31,10 @@ class SupabaseRepository:
         if not url or not key:
             raise ValueError("SUPABASE_URL y SUPABASE_KEY son requeridos")
         self.client: Client = create_client(url, key)
+
+    @staticmethod
+    def _search_term(value: Any) -> str:
+        return re.sub(r"[^\w\s@+\-]", "", str(value), flags=re.UNICODE).strip()[:100]
 
     # ============================================
     # CLIENTES
@@ -60,11 +66,13 @@ class SupabaseRepository:
         query = self.client.table("clientes").select("*", count="exact").is_("deleted_at", "null")
         if filtros:
             if filtros.get("busqueda"):
-                query = query.or_(
-                    f"nombre_completo.ilike.%{filtros['busqueda']}%,"
-                    f"cedula.ilike.%{filtros['busqueda']}%,"
-                    f"telefono.ilike.%{filtros['busqueda']}%"
-                )
+                term = self._search_term(filtros["busqueda"])
+                if term:
+                    query = query.or_(
+                        f"nombre_completo.ilike.%{term}%,"
+                        f"cedula.ilike.%{term}%,"
+                        f"telefono.ilike.%{term}%"
+                    )
             if filtros.get("tipo_cliente"):
                 query = query.eq("tipo_cliente", filtros["tipo_cliente"])
         query = query.order("created_at", desc=True).range((page - 1) * per_page, page * per_page - 1)
@@ -77,15 +85,15 @@ class SupabaseRepository:
         }
 
     def crear_cliente(self, data: dict[str, Any]) -> Optional[dict[str, Any]]:
-        data["created_at"] = datetime.utcnow().isoformat()
-        res = self.client.table("clientes").insert(data).execute()
+        payload = {**data, "created_at": datetime.now(timezone.utc).isoformat()}
+        res = self.client.table("clientes").insert(payload).execute()
         return res.data[0] if res.data else None
 
     def actualizar_cliente(self, cliente_id: str, data: dict[str, Any]) -> Optional[dict[str, Any]]:
-        data["updated_at"] = datetime.utcnow().isoformat()
+        payload = {**data, "updated_at": datetime.now(timezone.utc).isoformat()}
         res = (
             self.client.table("clientes")
-            .update(data)
+            .update(payload)
             .eq("id", cliente_id)
             .execute()
         )
@@ -94,7 +102,7 @@ class SupabaseRepository:
     def eliminar_cliente(self, cliente_id: str) -> bool:
         res = (
             self.client.table("clientes")
-            .update({"deleted_at": datetime.utcnow().isoformat()})
+            .update({"deleted_at": datetime.now(timezone.utc).isoformat()})
             .eq("id", cliente_id)
             .execute()
         )
@@ -123,11 +131,13 @@ class SupabaseRepository:
             if filtros.get("cliente_id"):
                 query = query.eq("cliente_id", filtros["cliente_id"])
             if filtros.get("busqueda"):
-                query = query.or_(
-                    f"tracking_code.ilike.%{filtros['busqueda']}%,"
-                    f"remitente_nombre.ilike.%{filtros['busqueda']}%,"
-                    f"destinatario_nombre.ilike.%{filtros['busqueda']}%"
-                )
+                term = self._search_term(filtros["busqueda"])
+                if term:
+                    query = query.or_(
+                        f"tracking_code.ilike.%{term}%,"
+                        f"remitente_nombre.ilike.%{term}%,"
+                        f"destinatario_nombre.ilike.%{term}%"
+                    )
         query = query.order("created_at", desc=True).range((page - 1) * per_page, page * per_page - 1)
         res = query.execute()
         return {
@@ -138,13 +148,13 @@ class SupabaseRepository:
         }
 
     def crear_paquete(self, data: dict[str, Any]) -> Optional[dict[str, Any]]:
-        data["created_at"] = datetime.utcnow().isoformat()
-        res = self.client.table("paquetes").insert(data).execute()
+        payload = {**data, "created_at": datetime.now(timezone.utc).isoformat()}
+        res = self.client.table("paquetes").insert(payload).execute()
         return res.data[0] if res.data else None
 
     def actualizar_estado_paquete(self, paquete_id: str, etiqueta: str, descripcion: str = "",
                                   ubicacion: str = "", foto_url: str = "") -> Optional[dict[str, Any]]:
-        now = datetime.utcnow().isoformat()
+        now = datetime.now(timezone.utc).isoformat()
         paquete_data = {
             "estado_actual": etiqueta.lower().replace(" ", "_"),
             "etiqueta_actual": etiqueta,
@@ -163,9 +173,11 @@ class SupabaseRepository:
         }
 
         res_paq = self.client.table("paquetes").update(paquete_data).eq("id", paquete_id).execute()
+        if not res_paq.data:
+            return None
         self.client.table("tracking_events").insert(event_data).execute()
 
-        return res_paq.data[0] if res_paq.data else None
+        return res_paq.data[0]
 
     def obtener_historial_tracking(self, paquete_id: str) -> list[dict[str, Any]]:
         res = (
@@ -193,7 +205,7 @@ class SupabaseRepository:
 
     def guardar_sesion(self, telefono: str, paso: str, datos: dict = None) -> dict[str, Any]:
         existing = self.obtener_sesion(telefono)
-        now = datetime.utcnow().isoformat()
+        now = datetime.now(timezone.utc).isoformat()
         payload = {
             "paso_actual": paso,
             "datos_temp": datos or {},
@@ -212,7 +224,7 @@ class SupabaseRepository:
             "telefono": telefono,
             "nombre": nombre,
             "origen": "whatsapp",
-            "created_at": datetime.utcnow().isoformat(),
+            "created_at": datetime.now(timezone.utc).isoformat(),
         }
         res = self.client.table("prospectos").insert(data).execute()
         return res.data[0] if res.data else None
@@ -252,12 +264,12 @@ class SupabaseRepository:
     # ============================================
 
     def registrar_notificacion(self, data: dict[str, Any]) -> Optional[dict[str, Any]]:
-        data["created_at"] = datetime.utcnow().isoformat()
-        res = self.client.table("notificaciones").insert(data).execute()
+        payload = {**data, "created_at": datetime.now(timezone.utc).isoformat()}
+        res = self.client.table("notificaciones").insert(payload).execute()
         return res.data[0] if res.data else None
 
     def actualizar_estado_notificacion(self, notif_id: str, estado: str, msg_id: str = "", error: str = "") -> None:
-        data = {"estado_envio": estado, "sent_at": datetime.utcnow().isoformat()}
+        data = {"estado_envio": estado, "sent_at": datetime.now(timezone.utc).isoformat()}
         if msg_id:
             data["whatsapp_msg_id"] = msg_id
         if error:
@@ -269,7 +281,14 @@ class SupabaseRepository:
     # ============================================
 
     def get_dashboard_stats(self) -> dict[str, Any]:
-        today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
+        try:
+            rpc = self.client.rpc("dashboard_stats").execute()
+            if isinstance(rpc.data, dict):
+                return rpc.data
+        except Exception as exc:
+            logger.warning("dashboard_stats RPC no disponible, usando consultas compatibles: %s", exc)
+
+        today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
         estados_pendientes = ["recibido_en_usa", "en_transito", "en_aduana", "en_destino", "en_ruta_de_entrega"]
 
         def q1():
@@ -338,7 +357,7 @@ class SupabaseRepository:
     def actualizar_config(self, clave: str, valor: str) -> bool:
         res = self.client.table("configuracion").update({
             "valor": valor,
-            "updated_at": datetime.utcnow().isoformat()
+            "updated_at": datetime.now(timezone.utc).isoformat()
         }).eq("clave", clave).execute()
         return len(res.data) > 0
 

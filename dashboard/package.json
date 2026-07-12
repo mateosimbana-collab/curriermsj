@@ -5,10 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1",
-    "start": "vite --host 127.0.0.1 --open",
+    "start": "vite --host 127.0.0.1 --open /react.html",
     "build": "vite build",
     "lint": "oxlint",
-    "preview": "vite preview --host 127.0.0.1 --open"
+    "preview": "vite preview --host 127.0.0.1 --open /react.html"
   },
   "dependencies": {
     "@chakra-ui/react": "^2.8.2",

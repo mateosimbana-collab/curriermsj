@@ -7,20 +7,15 @@ import {
   Heading,
   Icon,
   Text,
-  useColorModeValue,
   Badge,
   Tabs,
   TabList,
   Tab,
-  TabPanels,
-  TabPanel,
 } from "@chakra-ui/react"
 import {
   MdRefresh,
   MdWarning,
   MdPerson,
-  MdInventory2,
-  MdDescription,
 } from "react-icons/md"
 import Card from "components/card/Card"
 import { useSystemStats } from "lib/useSupabase"

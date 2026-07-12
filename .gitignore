@@ -7,14 +7,12 @@ venv/
 dist/
 build/
 .pytest_cache/
+.codegraph/
 *.log
 *.err
 node_modules/
 .idea/
 .env.local
-dashboard/.env
-dashboard/.env.local
-iniciar.bat
 backend/config/local.py
 supabase/.branches
 supabase/.temp/

@@ -5,8 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>CurrierMsj — Dueño</title>
 <script src="https://cdn.tailwindcss.com"></script>
-<script src="https://unpkg.com/lucide@latest"></script>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://unpkg.com/lucide@1.24.0"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1/dist/chart.umd.min.js"></script>
+<script src="/dashboard-assets/safe-html.js"></script>
 <script>tailwind.config={theme:{extend:{colors:{light:{bg:'#f1f5f9',card:'#ffffff',border:'#e2e8f0',accent:'#3b82f6'}}}}}</script>
 <style>@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');*{font-family:'Inter',sans-serif}body{background:#f8fafc;color:#1e293b}.card{background:#ffffff;border:1px solid #e2e8f0;border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,.04)}.kpi-value{font-size:1.8rem;font-weight:700;line-height:1.1;color:#0f172a}.kpi-label{font-size:.7rem;color:#64748b;text-transform:uppercase;letter-spacing:.05em;font-weight:600}.status-dot{width:8px;height:8px;border-radius:50%;display:inline-block}.progress-bar{height:6px;border-radius:3px;background:#e2e8f0;overflow:hidden}.progress-fill{height:100%;border-radius:3px;transition:width .4s ease}.table-row:hover{background:rgba(59,130,246,.03)}.sidebar-link.active{background:rgba(59,130,246,.08);color:#2563eb;border-left:3px solid #3b82f6;font-weight:600}.sidebar-link{border-left:3px solid transparent;transition:all .2s;color:#475569}.sidebar-link:hover{background:rgba(59,130,246,.04);color:#1e40af}.sidebar{background:#ffffff;border-right:1px solid #e2e8f0}::-webkit-scrollbar{width:6px}::-webkit-scrollbar-track{background:#f1f5f9}::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:3px}.fade-in{animation:fadeIn .3s ease-out}@keyframes fadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}</style>
 </head>
@@ -140,22 +141,22 @@ document.getElementById('earnWeek').textContent = '$'+(e.week??0).toLocaleString
 document.getElementById('earnMonth').textContent = '$'+(e.month??0).toLocaleString('en-US',{minimumFractionDigits:2});
 renderFinance(f||{});
 
-const tbody = document.getElementById('eventsTableBody'); tbody.innerHTML = '';
+const tbody = document.getElementById('eventsTableBody'); tbody.replaceChildren();
 const rows = (d.recent_shipments||[]).slice(0,12).map(s => {
 const code = s.tracking_code||'CUR-'+String(s.id).padStart(5,'0');
 const est = s.estado||'pendiente';
 const ec = est==='pendiente'?'text-amber-700 bg-amber-50 border border-amber-200':est==='entregado'?'text-emerald-700 bg-emerald-50 border border-emerald-200':'text-blue-700 bg-blue-50 border border-blue-200';
 return '<tr class="table-row border-b border-slate-100">'
-+'<td class="py-2.5 px-3 text-slate-700 font-mono text-[11px] font-medium">'+code+'</td>'
-+'<td class="py-2.5 px-3 text-slate-600">'+(s.remitente||'--')+'</td>'
-+'<td class="py-2.5 px-3 text-slate-600">'+(s.destinatario||'--')+'</td>'
-+'<td class="py-2.5 px-3 text-slate-500 max-w-[120px] truncate">'+(s.direccion_destino||'--')+'</td>'
-+'<td class="py-2.5 px-3 text-slate-600">'+(s.servicio_envio||'--')+'</td>'
-+'<td class="py-2.5 px-3"><span class="px-2 py-0.5 rounded text-[10px] font-semibold '+ec+'">'+est+'</span></td>'
++'<td class="py-2.5 px-3 text-slate-700 font-mono text-[11px] font-medium">'+escapeHtml(code)+'</td>'
++'<td class="py-2.5 px-3 text-slate-600">'+escapeHtml(s.remitente||'--')+'</td>'
++'<td class="py-2.5 px-3 text-slate-600">'+escapeHtml(s.destinatario||'--')+'</td>'
++'<td class="py-2.5 px-3 text-slate-500 max-w-[120px] truncate">'+escapeHtml(s.direccion_destino||'--')+'</td>'
++'<td class="py-2.5 px-3 text-slate-600">'+escapeHtml(s.servicio_envio||'--')+'</td>'
++'<td class="py-2.5 px-3"><span class="px-2 py-0.5 rounded text-[10px] font-semibold '+ec+'">'+escapeHtml(est)+'</span></td>'
 +'<td class="py-2.5 px-3 text-slate-600 font-mono">'+(s.valor_cotizado?'$'+parseFloat(s.valor_cotizado).toFixed(2):'--')+'</td>'
-+'<td class="py-2.5 px-3 text-slate-400 text-[10px] font-mono">'+(s.phone_number||'--')+'</td></tr>';
++'<td class="py-2.5 px-3 text-slate-400 text-[10px] font-mono">'+escapeHtml(s.phone_number||'--')+'</td></tr>';
 });
-if(rows.length){tbody.innerHTML=rows.join('');document.getElementById('noEvents').classList.add('hidden');}
+if(rows.length){setSafeHtml(tbody,rows.join(''));document.getElementById('noEvents').classList.add('hidden');}
 else{document.getElementById('noEvents').classList.remove('hidden');}
 }
 
@@ -168,28 +169,28 @@ document.getElementById('financeMargin').textContent = Number(f.margin_month||0)
 document.getElementById('financeBreakEven').textContent = fmt(f.break_even_month);
 
 const expenses = f.expense_rows||[];
-document.getElementById('financeExpensesBody').innerHTML = expenses.length ? expenses.map(r =>
-'<tr class="table-row border-b border-slate-100"><td class="py-2 px-3 text-slate-700">'+(r.categoria||'--')+'</td>'
-+'<td class="py-2 px-3"><span class="px-2 py-0.5 rounded text-[10px] '+((r.tipo_gasto||'variable')==='fijo'?'text-blue-700 bg-blue-50':'text-amber-700 bg-amber-50')+'">'+(r.tipo_gasto||'variable')+'</span></td>'
+setSafeHtml(document.getElementById('financeExpensesBody'), expenses.length ? expenses.map(r =>
+'<tr class="table-row border-b border-slate-100"><td class="py-2 px-3 text-slate-700">'+escapeHtml(r.categoria||'--')+'</td>'
++'<td class="py-2 px-3"><span class="px-2 py-0.5 rounded text-[10px] '+((r.tipo_gasto||'variable')==='fijo'?'text-blue-700 bg-blue-50':'text-amber-700 bg-amber-50')+'">'+escapeHtml(r.tipo_gasto||'variable')+'</span></td>'
 +'<td class="py-2 px-3 text-slate-600 font-mono">'+fmt(r.monto)+'</td>'
-+'<td class="py-2 px-3 text-slate-400 text-[10px]">'+(r.fecha||'--')+'</td></tr>'
-).join('') : '<tr><td colspan="4" class="text-center text-slate-400 py-4">Sin egresos registrados.</td></tr>';
++'<td class="py-2 px-3 text-slate-400 text-[10px]">'+escapeHtml(r.fecha||'--')+'</td></tr>'
+).join('') : '<tr><td colspan="4" class="text-center text-slate-400 py-4">Sin egresos registrados.</td></tr>');
 
 const payroll = f.payroll_rows||[];
-document.getElementById('financePayrollBody').innerHTML = payroll.length ? payroll.map(r =>
-'<tr class="table-row border-b border-slate-100"><td class="py-2 px-3 text-slate-700">'+(r.nombre||'--')+'<p class="text-[10px] text-slate-400">'+(r.cargo||'')+'</p></td>'
+setSafeHtml(document.getElementById('financePayrollBody'), payroll.length ? payroll.map(r =>
+'<tr class="table-row border-b border-slate-100"><td class="py-2 px-3 text-slate-700">'+escapeHtml(r.nombre||'--')+'<p class="text-[10px] text-slate-400">'+escapeHtml(r.cargo||'')+'</p></td>'
 +'<td class="py-2 px-3 text-slate-600 font-mono">'+fmt(r.neto)+'</td>'
-+'<td class="py-2 px-3 text-slate-400 text-[10px]">'+(r.fecha_pago||'--')+'</td>'
-+'<td class="py-2 px-3"><span class="px-2 py-0.5 rounded text-[10px] '+((r.estado_pago||'pendiente')==='pagado'?'text-emerald-700 bg-emerald-50':'text-amber-700 bg-amber-50')+'">'+(r.estado_pago||'pendiente')+'</span></td></tr>'
-).join('') : '<tr><td colspan="4" class="text-center text-slate-400 py-4">Sin planilla registrada.</td></tr>';
++'<td class="py-2 px-3 text-slate-400 text-[10px]">'+escapeHtml(r.fecha_pago||'--')+'</td>'
++'<td class="py-2 px-3"><span class="px-2 py-0.5 rounded text-[10px] '+((r.estado_pago||'pendiente')==='pagado'?'text-emerald-700 bg-emerald-50':'text-amber-700 bg-amber-50')+'">'+escapeHtml(r.estado_pago||'pendiente')+'</span></td></tr>'
+).join('') : '<tr><td colspan="4" class="text-center text-slate-400 py-4">Sin planilla registrada.</td></tr>');
 
 const margins = [...(f.product_margins||[]), ...(f.category_margins||[]).map(r => ({producto:r.categoria,categoria:'Categoria',ingresos:r.ingresos,costo:r.costo,margen:r.margen}))];
-document.getElementById('financeMarginsBody').innerHTML = margins.length ? margins.map(r =>
-'<tr class="table-row border-b border-slate-100"><td class="py-2 px-3 text-slate-700">'+(r.producto||r.categoria||'--')+'<p class="text-[10px] text-slate-400">'+(r.categoria||'')+'</p></td>'
+setSafeHtml(document.getElementById('financeMarginsBody'), margins.length ? margins.map(r =>
+'<tr class="table-row border-b border-slate-100"><td class="py-2 px-3 text-slate-700">'+escapeHtml(r.producto||r.categoria||'--')+'<p class="text-[10px] text-slate-400">'+escapeHtml(r.categoria||'')+'</p></td>'
 +'<td class="py-2 px-3 text-slate-600 font-mono">'+fmt(r.ingresos)+'</td>'
 +'<td class="py-2 px-3 text-slate-600 font-mono">'+fmt(r.costo)+'</td>'
 +'<td class="py-2 px-3 font-semibold '+(Number(r.margen||0)>=0?'text-emerald-600':'text-red-600')+'">'+Number(r.margen||0).toFixed(1)+'%</td></tr>'
-).join('') : '<tr><td colspan="4" class="text-center text-slate-400 py-4">Sin margenes registrados.</td></tr>';
+).join('') : '<tr><td colspan="4" class="text-center text-slate-400 py-4">Sin margenes registrados.</td></tr>');
 }
 
 function buildCharts(d,e,f) {
@@ -241,48 +242,48 @@ const stats = await statsResp.json(); const envios = await enviosResp.json();
 
 const ct = document.getElementById('ownerClientesBody');
 if(ct && stats.clientes){
-ct.innerHTML = stats.clientes.map(c =>
-'<tr class="table-row border-b border-slate-100"><td class="py-2.5 px-3 text-slate-700 font-mono text-[11px]">'+c.phone_number+'</td>'
-+'<td class="py-2.5 px-3 text-slate-600">'+((c.nombre||'')+' '+(c.apellido||'')).trim()||'--'+'</td>'
-+'<td class="py-2.5 px-3 text-slate-500">'+(c.ciudad||'--')+'</td>'
-+'<td class="py-2.5 px-3 text-slate-500">'+(c.telefono_contacto||'--')+'</td>'
+setSafeHtml(ct, stats.clientes.map(c =>
+'<tr class="table-row border-b border-slate-100"><td class="py-2.5 px-3 text-slate-700 font-mono text-[11px]">'+escapeHtml(c.phone_number)+'</td>'
++'<td class="py-2.5 px-3 text-slate-600">'+escapeHtml(((c.nombre||'')+' '+(c.apellido||'')).trim()||'--')+'</td>'
++'<td class="py-2.5 px-3 text-slate-500">'+escapeHtml(c.ciudad||'--')+'</td>'
++'<td class="py-2.5 px-3 text-slate-500">'+escapeHtml(c.telefono_contacto||'--')+'</td>'
 +'<td class="py-2.5 px-3 text-slate-400 text-[10px]">'+(c.registrado_en?new Date(c.registrado_en).toLocaleString('es-EC'):'--')+'</td></tr>'
-).join('');
+).join(''));
 document.getElementById('noOwnerClientes')&&document.getElementById('noOwnerClientes').classList.toggle('hidden',stats.clientes.length>0);
 }
 const sb = document.getElementById('ownerSessionsBody');
 const sessions = stats.estados||[];
 if(sb){
-sb.innerHTML = sessions.length ? sessions.map(u =>
-'<tr class="table-row border-b border-slate-100"><td class="py-2.5 px-3 text-slate-700 font-mono text-[11px]">'+u.phone_number+'</td>'
-+'<td class="py-2.5 px-3 text-slate-600">'+(u.paso_actual||'menu')+'</td>'
+setSafeHtml(sb, sessions.length ? sessions.map(u =>
+'<tr class="table-row border-b border-slate-100"><td class="py-2.5 px-3 text-slate-700 font-mono text-[11px]">'+escapeHtml(u.phone_number)+'</td>'
++'<td class="py-2.5 px-3 text-slate-600">'+escapeHtml(u.paso_actual||'menu')+'</td>'
 +'<td class="py-2.5 px-3 text-slate-500 text-[10px]">'+(u.updated_at?new Date(u.updated_at).toLocaleString('es-EC'):'--')+'</td></tr>'
-).join('') : '<tr><td colspan="3" class="text-center text-slate-400 py-4">Sin sesiones activas.</td></tr>';
+).join('') : '<tr><td colspan="3" class="text-center text-slate-400 py-4">Sin sesiones activas.</td></tr>');
 document.getElementById('noOwnerSessions')&&document.getElementById('noOwnerSessions').classList.toggle('hidden',sessions.length>0);
 }
 const et = document.getElementById('ownerEnviosBody');
 if(et && Array.isArray(envios)){
-et.innerHTML = envios.map(s =>
-'<tr class="table-row border-b border-slate-100"><td class="py-2.5 px-3 text-slate-700 font-mono text-[11px]">'+(s.tracking_code||'CUR-'+String(s.id).padStart(5,'0'))+'</td>'
-+'<td class="py-2.5 px-3 text-slate-600">'+(s.remitente||'--')+'</td>'
-+'<td class="py-2.5 px-3 text-slate-600">'+(s.destinatario||'--')+'</td>'
-+'<td class="py-2.5 px-3 text-slate-500 max-w-[100px] truncate">'+(s.direccion_destino||'--')+'</td>'
-+'<td class="py-2.5 px-3 text-slate-500">'+(s.tipo_paquete||'--')+'</td>'
-+'<td class="py-2.5 px-3 text-slate-500">'+(s.servicio_envio||'--')+'</td>'
-+'<td class="py-2.5 px-3"><span class="px-2 py-0.5 rounded text-[10px] '+(s.estado==='pendiente'?'text-amber-700 bg-amber-50 border border-amber-200':s.estado==='entregado'?'text-emerald-700 bg-emerald-50 border border-emerald-200':'text-blue-700 bg-blue-50 border border-blue-200')+'">'+(s.estado||'pendiente')+'</span></td>'
+setSafeHtml(et, envios.map(s =>
+'<tr class="table-row border-b border-slate-100"><td class="py-2.5 px-3 text-slate-700 font-mono text-[11px]">'+escapeHtml(s.tracking_code||'CUR-'+String(s.id).padStart(5,'0'))+'</td>'
++'<td class="py-2.5 px-3 text-slate-600">'+escapeHtml(s.remitente||'--')+'</td>'
++'<td class="py-2.5 px-3 text-slate-600">'+escapeHtml(s.destinatario||'--')+'</td>'
++'<td class="py-2.5 px-3 text-slate-500 max-w-[100px] truncate">'+escapeHtml(s.direccion_destino||'--')+'</td>'
++'<td class="py-2.5 px-3 text-slate-500">'+escapeHtml(s.tipo_paquete||'--')+'</td>'
++'<td class="py-2.5 px-3 text-slate-500">'+escapeHtml(s.servicio_envio||'--')+'</td>'
++'<td class="py-2.5 px-3"><span class="px-2 py-0.5 rounded text-[10px] '+(s.estado==='pendiente'?'text-amber-700 bg-amber-50 border border-amber-200':s.estado==='entregado'?'text-emerald-700 bg-emerald-50 border border-emerald-200':'text-blue-700 bg-blue-50 border border-blue-200')+'">'+escapeHtml(s.estado||'pendiente')+'</span></td>'
 +'<td class="py-2.5 px-3 text-slate-600 font-mono">'+(s.valor_cotizado?'$'+parseFloat(s.valor_cotizado).toFixed(2):'--')+'</td>'
 +'<td class="py-2.5 px-3 text-slate-400 text-[10px]">'+(s.creado_en?new Date(s.creado_en).toLocaleString('es-EC'):'--')+'</td></tr>'
-).join('');
+).join(''));
 document.getElementById('noOwnerEnvios')&&document.getElementById('noOwnerEnvios').classList.toggle('hidden',envios.length>0);
 }
 const rl = document.getElementById('ownerReportsList');
 if(rl && stats.reportes){
 document.getElementById('ownerReportCount').textContent = stats.reportes.length+' totales';
-rl.innerHTML = stats.reportes.length ? stats.reportes.map(r =>
+setSafeHtml(rl, stats.reportes.length ? stats.reportes.map(r =>
 '<div class="flex items-center justify-between p-3 rounded-lg bg-slate-50 border border-slate-200">'
-+'<div><p class="text-xs font-medium text-slate-800">'+(r.phone_number||'--')+'</p><p class="text-[10px] text-slate-400">'+(r.descripcion||'').substring(0,80)+(r.descripcion&&r.descripcion.length>80?'...':'')+'</p></div>'
-+'<div class="text-right"><span class="text-[10px] font-medium '+(r.estado==='abierto'?'text-amber-600':'text-emerald-600')+'">'+(r.estado||'abierto')+'</span><p class="text-[10px] text-slate-400 mt-0.5">'+(r.creado_en?new Date(r.creado_en).toLocaleString('es-EC'):'')+'</p></div></div>'
-).join('') : '<p class="text-xs text-slate-400">No hay reportes.</p>';
++'<div><p class="text-xs font-medium text-slate-800">'+escapeHtml(r.phone_number||'--')+'</p><p class="text-[10px] text-slate-400">'+escapeHtml((r.descripcion||'').substring(0,80)+(r.descripcion&&r.descripcion.length>80?'...':''))+'</p></div>'
++'<div class="text-right"><span class="text-[10px] font-medium '+(r.estado==='abierto'?'text-amber-600':'text-emerald-600')+'">'+escapeHtml(r.estado||'abierto')+'</span><p class="text-[10px] text-slate-400 mt-0.5">'+(r.creado_en?new Date(r.creado_en).toLocaleString('es-EC'):'')+'</p></div></div>'
+).join('') : '<p class="text-xs text-slate-400">No hay reportes.</p>');
 }
 } catch(err){console.error(err);}
 }

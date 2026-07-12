@@ -5,8 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CurrierMsj — Dashboard</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/lucide@latest"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="https://unpkg.com/lucide@1.24.0"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1/dist/chart.umd.min.js"></script>
+    <script src="/dashboard-assets/safe-html.js"></script>
     <script>
         tailwind.config = {
             theme: {
@@ -359,18 +360,17 @@
             const grid = document.getElementById('servicesGrid');
             const items = [
                 { name: 'Servicio Bot (Flask)', sub: 'currier_bot - puerto 5000', icon: 'server', ok: svc.bot },
-                { name: 'WhatsApp Cloud API', sub: 'Meta - v20.0', icon: 'message-circle', ok: svc.whatsapp },
-                { name: 'Supabase (PostgreSQL)', sub: 'pqklmihtvhquvtznklkx - 4 tablas', icon: 'database', ok: svc.supabase },
+                { name: 'WhatsApp Cloud API', sub: 'Meta - version configurada', icon: 'message-circle', ok: svc.whatsapp },
+                { name: 'Supabase (PostgreSQL)', sub: 'Proyecto configurado en servidor', icon: 'database', ok: svc.supabase },
             ];
-            grid.innerHTML = '';
-            items.forEach(it => {
+            const serviceCards = items.map(it => {
                 const color = it.ok ? 'emerald' : 'red';
                 const status = it.ok ? 'OPERATIVO' : 'CAIDO';
                 const pulse = it.ok ? ' animate-pulse' : '';
                 const bg = it.ok ? 'bg-emerald-50' : 'bg-red-50';
                 const textColor = it.ok ? 'text-emerald-600' : 'text-red-600';
                 const dotBg = it.ok ? 'bg-emerald-500' : 'bg-red-500';
-                grid.innerHTML += `
+                return safeTemplate`
                     <div class="flex items-center justify-between p-3 rounded-lg bg-slate-50 border border-slate-200 fade-in">
                         <div class="flex items-center gap-2.5">
                             <div class="w-8 h-8 rounded-md ${bg} flex items-center justify-center">
@@ -386,11 +386,12 @@
                         </span>
                     </div>`;
             });
+            setSafeHtml(grid, serviceCards.join(''));
 
             // Health
             const wsOk = svc.whatsapp ? 'emerald' : 'red';
             const allUp = svc.bot && svc.whatsapp && svc.supabase;
-            document.getElementById('healthRing').innerHTML = `<span class="w-10 h-10 bg-${wsOk}-500 rounded-full animate-pulse"></span>`;
+            setSafeHtml(document.getElementById('healthRing'), safeTemplate`<span class="w-10 h-10 bg-${wsOk}-500 rounded-full animate-pulse"></span>`);
             document.getElementById('healthRing').className = `w-16 h-16 rounded-full bg-${wsOk}-50 border-2 border-${wsOk}-200 flex items-center justify-center`;
             document.getElementById('healthLabel').textContent = allUp ? 'SISTEMA SALUDABLE' : 'ATENCION REQUERIDA';
             document.getElementById('healthLabel').className = `text-lg font-bold text-${wsOk}-600`;
@@ -424,7 +425,7 @@
             const shipments = d.recent_shipments || [];
             const sessions = d.active_sessions || [];
             const tbody = document.getElementById('eventsTableBody');
-            tbody.innerHTML = '';
+            tbody.replaceChildren();
 
             const rows = [];
             shipments.slice(0, 12).forEach(s => {
@@ -433,7 +434,7 @@
                 const estadoColor = estado === 'pendiente' ? 'text-amber-700 bg-amber-50 border border-amber-200'
                     : estado === 'entregado' ? 'text-emerald-700 bg-emerald-50 border border-emerald-200'
                     : 'text-blue-700 bg-blue-50 border border-blue-200';
-                rows.push(`
+                rows.push(safeTemplate`
                 <tr class="table-row border-b border-slate-100">
                     <td class="py-2.5 px-3 text-slate-700 font-mono text-[11px] font-medium">${code}</td>
                     <td class="py-2.5 px-3 text-slate-600">${s.destinatario || '--'}</td>
@@ -446,7 +447,7 @@
 
             sessions.slice(0, 8).forEach(u => {
                 const paso = u.paso_actual || 'menu';
-                rows.push(`
+                rows.push(safeTemplate`
                 <tr class="table-row border-b border-slate-100 opacity-60">
                     <td class="py-2.5 px-3 text-slate-400 font-mono text-[10px]">${u.phone_number}</td>
                     <td class="py-2.5 px-3 text-slate-400">Sesion activa</td>
@@ -458,7 +459,7 @@
             });
 
             if (rows.length > 0) {
-                tbody.innerHTML = rows.join('');
+                setSafeHtml(tbody, rows.join(''));
                 document.getElementById('noEvents').classList.add('hidden');
             } else {
                 document.getElementById('noEvents').classList.remove('hidden');
@@ -534,20 +535,20 @@
             if (obsGrid) {
                 const items = [
                     { name: 'Flask Bot', sub: 'currier_bot', icon: 'server', ok: obsSvc.bot },
-                    { name: 'WhatsApp API', sub: 'Meta Graph v20.0', icon: 'message-circle', ok: obsSvc.whatsapp },
+                    { name: 'WhatsApp API', sub: 'Version configurada', icon: 'message-circle', ok: obsSvc.whatsapp },
                     { name: 'Supabase', sub: 'PostgreSQL', icon: 'database', ok: obsSvc.supabase },
                 ];
-                obsGrid.innerHTML = items.map(it => {
+                setSafeHtml(obsGrid, items.map(it => {
                     const c = it.ok ? 'emerald' : 'red';
                     const s = it.ok ? 'OPERATIVO' : 'CAIDO';
-                    return `<div class="flex items-center justify-between p-3 rounded-lg bg-slate-50 border border-slate-200">
+                    return safeTemplate`<div class="flex items-center justify-between p-3 rounded-lg bg-slate-50 border border-slate-200">
                         <div class="flex items-center gap-2.5">
                             <div class="w-8 h-8 rounded-md bg-${c}-50 flex items-center justify-center"><i data-lucide="${it.icon}" class="w-4 h-4 text-${c}-600"></i></div>
                             <div><p class="text-xs font-medium text-slate-800">${it.name}</p><p class="text-[10px] text-slate-400">${it.sub}</p></div>
                         </div>
                         <span class="flex items-center gap-1.5 text-[10px] font-semibold text-${c}-600"><span class="status-dot bg-${c}-500 animate-pulse"></span> ${s}</span>
                     </div>`;
-                }).join('');
+                }).join(''));
                 lucide.createIcons();
             }
             document.getElementById('obsUptime') && (document.getElementById('obsUptime').textContent = '14d 3h');
@@ -557,26 +558,26 @@
             const obsEvents = document.getElementById('obsEventsList');
             if (obsEvents) {
                 const evts = (d.recent_shipments || []).slice(0, 6);
-                obsEvents.innerHTML = evts.length ? evts.map(s =>
-                    `<div class="flex items-center justify-between p-2 rounded bg-slate-50 border border-slate-200 text-xs">
+                setSafeHtml(obsEvents, evts.length ? evts.map(s =>
+                    safeTemplate`<div class="flex items-center justify-between p-2 rounded bg-slate-50 border border-slate-200 text-xs">
                         <span class="text-slate-600 font-mono text-[10px]">${s.tracking_code || 'CUR-'+String(s.id).padStart(5,'0')}</span>
                         <span class="text-slate-500">${s.destinatario || '--'}</span>
                         <span class="text-slate-400">${s.estado || 'pendiente'}</span>
                     </div>`
-                ).join('') : '<p class="text-xs text-slate-400">Sin eventos recientes.</p>';
+                ).join('') : '<p class="text-xs text-slate-400">Sin eventos recientes.</p>');
             }
 
             // Usuarios tab
             const usersTbody = document.getElementById('usersTableBody');
             const sessions = d.active_sessions || [];
             if (usersTbody) {
-                usersTbody.innerHTML = sessions.length ? sessions.map(u =>
-                    `<tr class="table-row border-b border-slate-100">
+                setSafeHtml(usersTbody, sessions.length ? sessions.map(u =>
+                    safeTemplate`<tr class="table-row border-b border-slate-100">
                         <td class="py-2.5 px-3 text-slate-700 font-mono text-[11px]">${u.phone_number}</td>
                         <td class="py-2.5 px-3 text-slate-600">${u.paso_actual || 'menu'}</td>
                         <td class="py-2.5 px-3 text-slate-500 text-[10px]">${u.updated_at ? new Date(u.updated_at).toLocaleString('es-EC') : '--'}</td>
                     </tr>`
-                ).join('') : '<tr><td colspan="3" class="text-center text-slate-400 py-4">Sin sesiones activas.</td></tr>';
+                ).join('') : '<tr><td colspan="3" class="text-center text-slate-400 py-4">Sin sesiones activas.</td></tr>');
                 document.getElementById('noUsers') && document.getElementById('noUsers').classList.toggle('hidden', sessions.length > 0);
             }
 
@@ -585,35 +586,35 @@
             const reportsList = document.getElementById('reportsList');
             if (reportsList) {
                 const rpts = d.active_sessions || [];
-                reportsList.innerHTML = rpts.length ? rpts.map(u =>
-                    `<div class="flex items-center justify-between p-3 rounded-lg bg-slate-50 border border-slate-200">
+                setSafeHtml(reportsList, rpts.length ? rpts.map(u =>
+                    safeTemplate`<div class="flex items-center justify-between p-3 rounded-lg bg-slate-50 border border-slate-200">
                         <div><p class="text-xs font-medium text-slate-800">${u.phone_number}</p><p class="text-[10px] text-slate-400">Paso: ${u.paso_actual}</p></div>
                         <span class="text-[10px] bg-amber-50 text-amber-700 px-2 py-0.5 rounded border border-amber-200">en curso</span>
                     </div>`
-                ).join('') : '<p class="text-xs text-slate-400">No hay reportes registrados.</p>';
+                ).join('') : '<p class="text-xs text-slate-400">No hay reportes registrados.</p>');
             }
 
             // Config tab
             const cfgWA = document.getElementById('configWhatsapp');
             if (cfgWA) {
-                cfgWA.innerHTML = `
-                    <p><span class="text-slate-500">Phone ID:</span> 1238571072668582</p>
-                    <p><span class="text-slate-500">WABA ID:</span> 1768778814289159</p>
-                    <p><span class="text-slate-500">App ID:</span> 1566734678572301</p>
-                    <p><span class="text-slate-500">API:</span> Graph v20.0</p>
-                    <p class="mt-2"><span class="text-slate-500">Estado:</span> <span class="text-emerald-600 font-medium">${obsSvc.whatsapp ? 'Conectado' : 'Desconectado'}</span></p>`;
+                setSafeHtml(cfgWA, safeTemplate`
+                    <p><span class="text-slate-500">Phone ID:</span> Configurado en servidor</p>
+                    <p><span class="text-slate-500">WABA ID:</span> Gestionado en Meta</p>
+                    <p><span class="text-slate-500">App ID:</span> Gestionado en Meta</p>
+                    <p><span class="text-slate-500">API:</span> Version configurada por entorno</p>
+                    <p class="mt-2"><span class="text-slate-500">Estado:</span> <span class="text-emerald-600 font-medium">${obsSvc.whatsapp ? 'Conectado' : 'Desconectado'}</span></p>`);
             }
-            document.getElementById('configSupabase') && (document.getElementById('configSupabase').innerHTML = `
-                <p><span class="text-slate-500">URL:</span> pqklmihtvhquvtznklkx.supabase.co</p>
+            document.getElementById('configSupabase') && setSafeHtml(document.getElementById('configSupabase'), safeTemplate`
+                <p><span class="text-slate-500">URL:</span> Configurada en servidor</p>
                 <p><span class="text-slate-500">Tablas:</span> envios, estado_usuario, faq, reportes</p>
                 <p><span class="text-slate-500">Total envios:</span> ${d.total_shipments ?? 0}</p>
                 <p class="mt-2"><span class="text-slate-500">Estado:</span> <span class="text-emerald-600 font-medium">${obsSvc.supabase ? 'Conectado' : 'Desconectado'}</span></p>`);
-            document.getElementById('configBot') && (document.getElementById('configBot').innerHTML = `
+            document.getElementById('configBot') && setSafeHtml(document.getElementById('configBot'), safeTemplate`
                 <p><span class="text-slate-500">Nombre:</span> Rex</p>
                 <p><span class="text-slate-500">Ruta:</span> EE.UU. -> Ecuador</p>
                 <p><span class="text-slate-500">Horario:</span> Lunes a Sabado 8:00-18:00</p>
-                <p><span class="text-slate-500">Webhook:</span> washday-figment-plexiglas.ngrok-free.dev</p>`);
-            document.getElementById('configPerf') && (document.getElementById('configPerf').innerHTML = `
+                <p><span class="text-slate-500">Webhook:</span> Configurado en Meta</p>`);
+            document.getElementById('configPerf') && setSafeHtml(document.getElementById('configPerf'), safeTemplate`
                 <p><span class="text-slate-500">Pool HTTP:</span> 10 conexiones</p>
                 <p><span class="text-slate-500">Timeout:</span> 10 segundos</p>
                 <p><span class="text-slate-500">Max mensajes/batch:</span> 5</p>

@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Carga datos de prueba en Supabase con fechas dinamicas."""
 
-import json
 import os
 import sys
 from datetime import datetime, timedelta, timezone
@@ -35,11 +34,7 @@ def post(table: str, data: list[dict], prefer: str = "return=minimal") -> bool:
         r.raise_for_status()
         return True
     except httpx.HTTPStatusError as e:
-        body = ""
-        try:
-            body = e.response.text[:200]
-        except Exception:
-            pass
+        body = e.response.text[:200]
         status = e.response.status_code
         if status == 404:
             print(f"    [!] TABLA FALTANTE: '{table}' no existe. Ejecuta el schema SQL en Supabase.")

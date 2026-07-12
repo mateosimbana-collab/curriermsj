@@ -13,9 +13,9 @@ def _env_bool(name: str, default: bool = False) -> bool:
     return value.strip().lower() in {"1", "true", "yes", "on"}
 
 
-HOST = os.getenv("HOST", "0.0.0.0")
+HOST = os.getenv("HOST", "127.0.0.1")
 PORT = int(os.getenv("PORT", "5000"))
-DEBUG = _env_bool("DEBUG", True)
+DEBUG = _env_bool("FLASK_DEBUG", False)
 
 BUSINESS_NAME = os.getenv("BUSINESS_NAME", "CurrierMsj")
 BOT_NAME = os.getenv("BOT_NAME", "Rex")
@@ -24,7 +24,7 @@ SUPPORT_HOURS = os.getenv("SUPPORT_HOURS", "Lunes a Sábado, 8:00 - 18:00")
 
 WHATSAPP_TOKEN = os.getenv("WHATSAPP_TOKEN", "")
 PHONE_NUMBER_ID = os.getenv("PHONE_NUMBER_ID", "")
-WEBHOOK_VERIFY_TOKEN = os.getenv("WEBHOOK_VERIFY_TOKEN", "curriermsj_secret")
+WEBHOOK_VERIFY_TOKEN = os.getenv("WEBHOOK_VERIFY_TOKEN", "")
 
 SUPABASE_URL = os.getenv("SUPABASE_URL", "")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY", "")
@@ -38,4 +38,5 @@ SUPABASE_TABLE_REPORTES = "reportes"
 WELCOME_IMAGE_URL = os.getenv("WELCOME_IMAGE_URL", "")
 URL_GOOGLE_SHEETS = os.getenv("URL_GOOGLE_SHEETS", "")
 
-WHATSAPP_API_URL = "https://graph.facebook.com/v20.0"
+WHATSAPP_API_VERSION = os.getenv("WHATSAPP_API_VERSION", "").strip()
+WHATSAPP_API_URL = f"https://graph.facebook.com/{WHATSAPP_API_VERSION}" if WHATSAPP_API_VERSION else ""

@@ -1,10 +1,9 @@
 import logging
 import re
-from datetime import datetime
 from typing import Any, Callable
 
 import config
-from bot.messages import LINE, Buttons, MessageTemplates, build_quote_options
+from bot.messages import Buttons, MessageTemplates, build_quote_options
 from domain.constants import (
     INSTRUCTIONS,
     PACKAGE_TYPES,

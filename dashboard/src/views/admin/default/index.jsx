@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react"
+import React, { useMemo } from "react"
 import {
   Box,
   Button,
@@ -20,7 +20,7 @@ import {
   MdTrendingUp,
 } from "react-icons/md"
 import Card from "components/card/Card"
-import { useEnvios, useSystemStats, calcularMetricas } from "lib/useSupabase"
+import { useEnvios, calcularMetricas } from "lib/useSupabase"
 import {
   BarChart,
   Bar,
@@ -359,7 +359,7 @@ export default function MainDashboard() {
                 </Box>
               </Box>
               <Box as="tbody">
-                {envios.slice(0, 10).map((envio, idx) => (
+                {envios.slice(0, 10).map((envio) => (
                   <Box
                     as="tr"
                     key={envio.id}

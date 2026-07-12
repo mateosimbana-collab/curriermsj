@@ -1,6 +1,14 @@
 import { useState, useEffect, useCallback } from 'react'
 
-const BACKEND_URL = (import.meta.env.VITE_BOT_HEALTH_URL || 'http://localhost:5000/health').replace('/health', '')
+const healthUrl = import.meta.env.VITE_BOT_HEALTH_URL || '/health'
+const BACKEND_URL = healthUrl.endsWith('/health')
+  ? healthUrl.slice(0, -'/health'.length)
+  : healthUrl.replace(/\/$/, '')
+
+const apiFetch = (path) => fetch(`${BACKEND_URL}${path}`, {
+  cache: 'no-store',
+  credentials: 'include',
+})
 
 /**
  * Hook para obtener los envíos desde el backend Flask (que actúa como proxy de Supabase).
@@ -12,7 +20,7 @@ export function useEnvios() {
 
   const fetchEnvios = useCallback(async () => {
     try {
-      const response = await fetch(`${BACKEND_URL}/api/envios`, { cache: 'no-store' })
+      const response = await apiFetch('/api/envios')
       if (!response.ok) {
         throw new Error(`Error en servidor Flask: ${response.status} ${response.statusText}`)
       }
@@ -55,7 +63,7 @@ export function useSystemStats() {
 
   const fetchStats = useCallback(async () => {
     try {
-      const response = await fetch(`${BACKEND_URL}/api/system-stats`, { cache: 'no-store' })
+      const response = await apiFetch('/api/system-stats')
       if (!response.ok) {
         throw new Error(`Error en servidor Flask: ${response.status} ${response.statusText}`)
       }

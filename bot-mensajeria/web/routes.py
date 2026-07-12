@@ -8,6 +8,7 @@ from zoneinfo import ZoneInfo
 from flask import Flask, jsonify, request, send_from_directory
 
 import config
+from backend.security import require_legacy_auth, secrets_match, verify_meta_signature
 from bot.courier_bot import CourierBot
 from domain.models import IncomingMessage
 
@@ -143,7 +144,7 @@ def create_app(bot: CourierBot) -> Flask:
         token = request.args.get("hub.verify_token")
         challenge = request.args.get("hub.challenge")
 
-        if mode == "subscribe" and token == config.WEBHOOK_VERIFY_TOKEN:
+        if mode == "subscribe" and secrets_match(token, config.WEBHOOK_VERIFY_TOKEN):
             logger.info("Webhook verificado correctamente")
             return challenge or "", 200
 
@@ -152,6 +153,9 @@ def create_app(bot: CourierBot) -> Flask:
 
     @app.post("/webhook")
     def receive_message():
+        body = request.get_data(cache=True)
+        if not verify_meta_signature(body, request.headers.get("X-Hub-Signature-256")):
+            return "Unauthorized", 401
         payload = request.get_json(silent=True) or {}
         if payload.get("object") != "whatsapp_business_account":
             return "Not Found", 404
@@ -174,6 +178,7 @@ def create_app(bot: CourierBot) -> Flask:
         return "OK", 200
 
     @app.get("/api/dashboard")
+    @require_legacy_auth
     def api_dashboard():
         stats = bot.repository.get_dashboard_stats()
 
@@ -222,14 +227,24 @@ def create_app(bot: CourierBot) -> Flask:
         }), 200
 
     @app.get("/dashboard")
+    @require_legacy_auth
     def dashboard():
         dashboard_dir = os.path.join(os.path.dirname(__file__), "..", "..", "dashboard")
         return send_from_directory(dashboard_dir, "owner.html")
 
     @app.get("/dashboard/soporte")
+    @require_legacy_auth
     def dashboard_soporte():
         dashboard_dir = os.path.join(os.path.dirname(__file__), "..", "..", "dashboard")
         return send_from_directory(dashboard_dir, "support.html")
+
+    @app.get("/dashboard-assets/<path:filename>")
+    @require_legacy_auth
+    def dashboard_asset(filename):
+        assets_dir = os.path.join(
+            os.path.dirname(__file__), "..", "..", "dashboard", "public", "dashboard-assets"
+        )
+        return send_from_directory(assets_dir, filename)
 
     @app.get("/health")
     def health():
@@ -242,6 +257,7 @@ def create_app(bot: CourierBot) -> Flask:
         ), 200
 
     @app.get("/api/envios")
+    @require_legacy_auth
     def get_all_envios():
         try:
             url = f"{bot.repository._table(bot.repository.table_envios)}?select=*&order=creado_en.desc"
@@ -252,6 +268,7 @@ def create_app(bot: CourierBot) -> Flask:
             return jsonify({"error": str(e)}), 500
 
     @app.get("/api/system-stats")
+    @require_legacy_auth
     def get_system_stats():
         try:
             clientes_url = f"{bot.repository._table(bot.repository.table_clientes)}?select=*"
@@ -272,6 +289,7 @@ def create_app(bot: CourierBot) -> Flask:
             return jsonify({"error": str(e)}), 500
 
     @app.get("/api/earnings")
+    @require_legacy_auth
     def get_earnings():
         try:
             url = f"{bot.repository._table(bot.repository.table_envios)}?select=valor_cotizado,creado_en,servicio_envio&order=creado_en.desc"
@@ -295,9 +313,12 @@ def create_app(bot: CourierBot) -> Flask:
                         if dt.tzinfo is None:
                             dt = dt.replace(tzinfo=timezone.utc)
                         dt = dt.astimezone(BUSINESS_TZ)
-                        if dt >= today_start: today += val
-                        if dt >= week_start: week += val
-                        if dt >= month_start: month += val
+                        if dt >= today_start:
+                            today += val
+                        if dt >= week_start:
+                            week += val
+                        if dt >= month_start:
+                            month += val
                         key = dt.strftime("%Y-%m")
                         by_month[key] = by_month.get(key, 0) + val
                     except (TypeError, ValueError) as exc:
@@ -308,6 +329,7 @@ def create_app(bot: CourierBot) -> Flask:
             return jsonify({"error": str(e)}), 500
 
     @app.get("/api/finance-summary")
+    @require_legacy_auth
     def get_finance_summary():
         try:
             now = datetime.now(BUSINESS_TZ)
@@ -469,6 +491,7 @@ def create_app(bot: CourierBot) -> Flask:
             return jsonify({"error": str(e)}), 500
 
     @app.get("/api/logs")
+    @require_legacy_auth
     def get_logs():
         try:
             log_path = os.path.join(os.path.dirname(__file__), "..", "app.err")
@@ -483,6 +506,7 @@ def create_app(bot: CourierBot) -> Flask:
             return jsonify({"error": str(e)}), 500
 
     @app.get("/api/test-results")
+    @require_legacy_auth
     def get_test_results():
         try:
             results_path = os.path.join(os.path.dirname(__file__), "..", "test_results.json")
@@ -505,9 +529,17 @@ def create_app(bot: CourierBot) -> Flask:
 
     @app.after_request
     def add_cors_headers(response):
-        response.headers.add("Access-Control-Allow-Origin", "*")
-        response.headers.add("Access-Control-Allow-Headers", "Content-Type,Authorization")
-        response.headers.add("Access-Control-Allow-Methods", "GET,PUT,POST,DELETE,OPTIONS")
+        origin = request.headers.get("Origin", "")
+        allowed = {item.strip() for item in os.getenv("CORS_ORIGINS", "").split(",") if item.strip()}
+        if origin in allowed:
+            response.headers["Access-Control-Allow-Origin"] = origin
+            response.headers["Vary"] = "Origin"
+            response.headers["Access-Control-Allow-Credentials"] = "true"
+            response.headers["Access-Control-Allow-Headers"] = "Authorization, Content-Type"
+            response.headers["Access-Control-Allow-Methods"] = "GET, OPTIONS"
+        response.headers.setdefault("X-Content-Type-Options", "nosniff")
+        response.headers.setdefault("X-Frame-Options", "DENY")
+        response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
         return response
 
     return app

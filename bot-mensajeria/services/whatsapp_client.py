@@ -142,8 +142,8 @@ class WhatsAppClient:
         return self._post(payload, f"imagen a {to}")
 
     def _post(self, payload: dict[str, Any], description: str) -> bool:
-        if not self.token or not self.phone_number_id:
-            logger.error("WhatsApp no configurado: faltan WHATSAPP_TOKEN o PHONE_NUMBER_ID")
+        if not self.token or not self.phone_number_id or not self.api_url:
+            logger.error("WhatsApp no configurado: faltan token, phone ID o version de API")
             return False
 
         try:

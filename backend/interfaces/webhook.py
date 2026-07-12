@@ -1,3 +1,4 @@
+# ruff: noqa: E402
 import os
 import sys
 import logging
@@ -11,6 +12,7 @@ from bot.courier_bot import CourierBot
 from services.whatsapp_client import WhatsAppClient
 from services.supabase_repository import SupabaseRepository
 from web.routes import WhatsAppWebhookParser
+from backend.security import secrets_match, verify_meta_signature
 
 logger = logging.getLogger(__name__)
 
@@ -36,24 +38,37 @@ def verify_webhook():
     mode = request.args.get("hub.mode")
     token = request.args.get("hub.verify_token")
     challenge = request.args.get("hub.challenge")
-    verify_token = os.getenv("WEBHOOK_VERIFY_TOKEN", "curriermsj_secret")
-    if mode == "subscribe" and token == verify_token:
+    verify_token = os.getenv("WEBHOOK_VERIFY_TOKEN", "")
+    if mode == "subscribe" and secrets_match(token, verify_token):
         return challenge or "", 200
     return "Forbidden", 403
 
 
 @webhook_bp.route("/webhook", methods=["POST"])
 def receive_message():
+    signature = request.headers.get("X-Hub-Signature-256", "")
+    body = request.get_data(cache=True)
+    if not verify_meta_signature(body, signature):
+        return "Unauthorized", 401
+
     payload = request.get_json(silent=True) or {}
+    if not isinstance(payload, dict):
+        return "Bad Request", 400
     if payload.get("object") != "whatsapp_business_account":
         return "Not Found", 404
-    if payload.get("entry", [{}])[0].get("changes", [{}])[0].get("value", {}).get("statuses"):
+    entries = payload.get("entry") or []
+    if any(
+        change.get("value", {}).get("statuses")
+        for entry in entries if isinstance(entry, dict)
+        for change in (entry.get("changes") or []) if isinstance(change, dict)
+    ):
         return "OK", 200
     try:
         bot = _get_bot()
         events = WhatsAppWebhookParser.parse(payload)
         for event in events:
             bot.process(event)
-    except Exception as e:
-        logger.error("Webhook error: %s", e)
+    except Exception:
+        logger.exception("Webhook processing failed")
+        return "Internal Server Error", 500
     return "OK", 200

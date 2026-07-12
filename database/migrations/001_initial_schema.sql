@@ -26,7 +26,34 @@ CREATE TABLE IF NOT EXISTS usuarios (
     deleted_at TIMESTAMPTZ
 );
 
--- 2. CLIENTES (personas naturales que reciben/envian paquetes)
+-- 2. GRUPOS DE CLIENTES
+CREATE TABLE IF NOT EXISTS grupos_clientes (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    nombre TEXT NOT NULL,
+    descripcion TEXT,
+    responsable_telefono TEXT NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    deleted_at TIMESTAMPTZ
+);
+
+-- 3. CLIENTES MAYORISTAS
+CREATE TABLE IF NOT EXISTS mayoristas (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    nombre_empresa TEXT NOT NULL,
+    ruc TEXT,
+    contacto_nombre TEXT NOT NULL,
+    contacto_telefono TEXT NOT NULL,
+    contacto_email TEXT,
+    telefono_oficina TEXT,
+    condiciones_pago TEXT,
+    credito_asignado NUMERIC(10,2) DEFAULT 0,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    deleted_at TIMESTAMPTZ
+);
+
+-- 4. CLIENTES (personas naturales que reciben/envian paquetes)
 CREATE TABLE IF NOT EXISTS clientes (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     cedula TEXT NOT NULL,
@@ -43,36 +70,13 @@ CREATE TABLE IF NOT EXISTS clientes (
     notas TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW(),
-    deleted_at TIMESTAMPTZ,
-    UNIQUE(cedula, deleted_at)
-);
-
--- 3. GRUPOS DE CLIENTES
-CREATE TABLE IF NOT EXISTS grupos_clientes (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    nombre TEXT NOT NULL,
-    descripcion TEXT,
-    responsable_telefono TEXT NOT NULL,
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW(),
     deleted_at TIMESTAMPTZ
 );
 
--- 4. CLIENTES MAYORISTAS
-CREATE TABLE IF NOT EXISTS mayoristas (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    nombre_empresa TEXT NOT NULL,
-    ruc TEXT,
-    contacto_nombre TEXT NOT NULL,
-    contacto_telefono TEXT NOT NULL,
-    contacto_email TEXT,
-    telefono_oficina TEXT,
-    condiciones_pago TEXT,
-    credito_asignado NUMERIC(10,2) DEFAULT 0,
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW(),
-    deleted_at TIMESTAMPTZ
-);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_clientes_cedula_activa
+    ON clientes(cedula) WHERE deleted_at IS NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_clientes_telefono_activo
+    ON clientes(telefono) WHERE deleted_at IS NULL;
 
 -- 5. PROSPECTOS (leads de WhatsApp)
 CREATE TABLE IF NOT EXISTS prospectos (
@@ -234,11 +238,43 @@ CREATE TABLE IF NOT EXISTS reportes_generados (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- 15. REPORTES DE SOPORTE CREADOS POR CLIENTES
+CREATE TABLE IF NOT EXISTS reportes (
+    id BIGSERIAL PRIMARY KEY,
+    cliente_id UUID REFERENCES clientes(id),
+    paquete_id UUID REFERENCES paquetes(id),
+    telefono_contacto TEXT NOT NULL,
+    descripcion TEXT NOT NULL,
+    categoria TEXT,
+    estado TEXT NOT NULL DEFAULT 'abierto'
+        CHECK (estado IN ('abierto', 'en_proceso', 'resuelto', 'cerrado')),
+    agente_asignado_id UUID REFERENCES usuarios(id),
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    closed_at TIMESTAMPTZ
+);
+
+CREATE INDEX IF NOT EXISTS idx_reportes_cliente ON reportes(cliente_id);
+CREATE INDEX IF NOT EXISTS idx_reportes_estado ON reportes(estado, created_at DESC);
+
+-- 16. PREGUNTAS FRECUENTES DEL BOT
+CREATE TABLE IF NOT EXISTS faq (
+    id BIGSERIAL PRIMARY KEY,
+    pregunta TEXT UNIQUE NOT NULL,
+    respuesta TEXT NOT NULL,
+    categoria TEXT NOT NULL DEFAULT 'general',
+    activo BOOLEAN NOT NULL DEFAULT true,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- ============================================
 -- FUNCIONES Y TRIGGERS
 -- ============================================
 
 -- Auto-generar tracking code
+CREATE SEQUENCE IF NOT EXISTS paquetes_seq START 1000;
+
 CREATE OR REPLACE FUNCTION generar_tracking_code()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -247,9 +283,7 @@ BEGIN
     END IF;
     RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
-
-CREATE SEQUENCE IF NOT EXISTS paquetes_seq START 1000;
+$$ LANGUAGE plpgsql SET search_path = public;
 
 DROP TRIGGER IF EXISTS trg_paquetes_tracking ON paquetes;
 CREATE TRIGGER trg_paquetes_tracking
@@ -278,11 +312,13 @@ BEGIN
     END IF;
     RETURN NULL;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SET search_path = public;
 
 -- Trigger de auditoria para tablas principales
+DROP TRIGGER IF EXISTS trg_audit_paquetes ON paquetes;
 CREATE TRIGGER trg_audit_paquetes AFTER INSERT OR UPDATE OR DELETE ON paquetes
     FOR EACH ROW EXECUTE FUNCTION audit_trigger_func();
+DROP TRIGGER IF EXISTS trg_audit_clientes ON clientes;
 CREATE TRIGGER trg_audit_clientes AFTER INSERT OR UPDATE OR DELETE ON clientes
     FOR EACH ROW EXECUTE FUNCTION audit_trigger_func();
 
@@ -295,8 +331,8 @@ INSERT INTO configuracion (clave, valor, tipo, descripcion) VALUES
     ('bot_name', 'Rex', 'texto', 'Nombre del asistente virtual'),
     ('route_label', 'EE.UU. -> Ecuador', 'texto', 'Ruta principal'),
     ('support_hours', 'Lunes a Sabado 8:00-18:00', 'texto', 'Horario de atencion'),
-    ('whatsapp_phone_id', '1238571072668582', 'texto', 'ID del telefono de WhatsApp'),
-    ('whatsapp_waba_id', '1768778814289159', 'texto', 'ID de WABA'),
+    ('whatsapp_phone_id', '', 'texto', 'ID del telefono de WhatsApp'),
+    ('whatsapp_waba_id', '', 'texto', 'ID de WABA'),
     ('max_notifications_per_hour', '20', 'numero', 'Limite de notificaciones por hora'),
     ('require_approval_for_dispatch', 'true', 'booleano', 'Requiere aprobacion para despachar')
 ON CONFLICT (clave) DO NOTHING;
@@ -312,18 +348,67 @@ INSERT INTO etiquetas_estado (nombre, descripcion, color, posicion, notificar_cl
     ('Retenido', 'Retenido por agente', '#dc2626', 8, false)
 ON CONFLICT (nombre) DO NOTHING;
 
+INSERT INTO faq (pregunta, respuesta, categoria) VALUES
+    ('horario', 'Nuestro horario de atencion es de Lunes a Sabado de 8:00 a 18:00.', 'general'),
+    ('costo', 'El costo depende del peso y la ruta. Solicita una cotizacion para obtener un estimado.', 'envios'),
+    ('tiempo entrega', 'El tiempo estimado entre EE.UU. y Ecuador depende del servicio y aduana.', 'envios'),
+    ('formas pago', 'Aceptamos los medios de pago coordinados con el agente.', 'pagos'),
+    ('cobertura', 'La ruta principal del servicio es Estados Unidos hacia Ecuador.', 'general')
+ON CONFLICT (pregunta) DO UPDATE SET
+    respuesta = EXCLUDED.respuesta,
+    categoria = EXCLUDED.categoria,
+    updated_at = NOW();
+
 -- ============================================
 -- RLS (Row Level Security)
 -- ============================================
 ALTER TABLE usuarios ENABLE ROW LEVEL SECURITY;
+ALTER TABLE grupos_clientes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE mayoristas ENABLE ROW LEVEL SECURITY;
 ALTER TABLE clientes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE prospectos ENABLE ROW LEVEL SECURITY;
 ALTER TABLE paquetes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE etiquetas_estado ENABLE ROW LEVEL SECURITY;
 ALTER TABLE tracking_events ENABLE ROW LEVEL SECURITY;
+ALTER TABLE imagenes_paquete ENABLE ROW LEVEL SECURITY;
+ALTER TABLE notificaciones ENABLE ROW LEVEL SECURITY;
 ALTER TABLE audit_log ENABLE ROW LEVEL SECURITY;
+ALTER TABLE configuracion ENABLE ROW LEVEL SECURITY;
+ALTER TABLE sesiones_whatsapp ENABLE ROW LEVEL SECURITY;
+ALTER TABLE reportes_generados ENABLE ROW LEVEL SECURITY;
+ALTER TABLE reportes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE faq ENABLE ROW LEVEL SECURITY;
 
 -- Políticas: solo service_role (backend) tiene acceso total
+DROP POLICY IF EXISTS "Service role full access" ON usuarios;
 CREATE POLICY "Service role full access" ON usuarios FOR ALL USING (auth.role() = 'service_role');
+DROP POLICY IF EXISTS "Service role full access" ON grupos_clientes;
+CREATE POLICY "Service role full access" ON grupos_clientes FOR ALL USING (auth.role() = 'service_role');
+DROP POLICY IF EXISTS "Service role full access" ON mayoristas;
+CREATE POLICY "Service role full access" ON mayoristas FOR ALL USING (auth.role() = 'service_role');
+DROP POLICY IF EXISTS "Service role full access" ON clientes;
 CREATE POLICY "Service role full access" ON clientes FOR ALL USING (auth.role() = 'service_role');
+DROP POLICY IF EXISTS "Service role full access" ON prospectos;
+CREATE POLICY "Service role full access" ON prospectos FOR ALL USING (auth.role() = 'service_role');
+DROP POLICY IF EXISTS "Service role full access" ON paquetes;
 CREATE POLICY "Service role full access" ON paquetes FOR ALL USING (auth.role() = 'service_role');
+DROP POLICY IF EXISTS "Service role full access" ON etiquetas_estado;
+CREATE POLICY "Service role full access" ON etiquetas_estado FOR ALL USING (auth.role() = 'service_role');
+DROP POLICY IF EXISTS "Service role full access" ON tracking_events;
 CREATE POLICY "Service role full access" ON tracking_events FOR ALL USING (auth.role() = 'service_role');
+DROP POLICY IF EXISTS "Service role full access" ON imagenes_paquete;
+CREATE POLICY "Service role full access" ON imagenes_paquete FOR ALL USING (auth.role() = 'service_role');
+DROP POLICY IF EXISTS "Service role full access" ON notificaciones;
+CREATE POLICY "Service role full access" ON notificaciones FOR ALL USING (auth.role() = 'service_role');
+DROP POLICY IF EXISTS "Service role full access" ON audit_log;
 CREATE POLICY "Service role full access" ON audit_log FOR ALL USING (auth.role() = 'service_role');
+DROP POLICY IF EXISTS "Service role full access" ON configuracion;
+CREATE POLICY "Service role full access" ON configuracion FOR ALL USING (auth.role() = 'service_role');
+DROP POLICY IF EXISTS "Service role full access" ON sesiones_whatsapp;
+CREATE POLICY "Service role full access" ON sesiones_whatsapp FOR ALL USING (auth.role() = 'service_role');
+DROP POLICY IF EXISTS "Service role full access" ON reportes_generados;
+CREATE POLICY "Service role full access" ON reportes_generados FOR ALL USING (auth.role() = 'service_role');
+DROP POLICY IF EXISTS "Service role full access" ON reportes;
+CREATE POLICY "Service role full access" ON reportes FOR ALL USING (auth.role() = 'service_role');
+DROP POLICY IF EXISTS "Service role full access" ON faq;
+CREATE POLICY "Service role full access" ON faq FOR ALL USING (auth.role() = 'service_role');
