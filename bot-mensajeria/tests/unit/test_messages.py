@@ -244,6 +244,15 @@ class TestMessageTemplates:
         assert "Quito" in summary
         assert "Documentos" in summary
 
+    def test_quote_request_is_explicitly_manual(self):
+        text = MessageTemplates.quote_request_created(
+            12,
+            {"destino": "Cuenca", "tipo_paquete": "Ropa", "peso": "1 - 5 kg"},
+        )
+        assert "#COT-0012" in text
+        assert "Una persona" in text
+        assert "Cuenca" in text
+
     def test_ask_sender_name(self):
         text = MessageTemplates.ask_sender_name()
         assert "nombre" in text.lower()

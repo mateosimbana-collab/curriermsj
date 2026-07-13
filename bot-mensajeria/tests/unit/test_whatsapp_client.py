@@ -147,9 +147,20 @@ class TestPost:
         mock_response = MagicMock()
         mock_response.status_code = 400
         mock_response.text = '{"error":"bad request"}'
+        mock_response.json.return_value = {"error": "bad request"}
         with patch("requests.post", return_value=mock_response):
             result = client._post({"test": "payload"}, "test")
             assert result is False
+
+    def test_recipient_not_allowed_logs_actionable_message(self, client, caplog):
+        mock_response = MagicMock()
+        mock_response.status_code = 400
+        mock_response.json.return_value = {"error": {"code": 131030}}
+        with patch("requests.post", return_value=mock_response):
+            result = client._post({"test": "payload"}, "test")
+
+        assert result is False
+        assert "lista de destinatarios permitidos" in caplog.text
 
     def test_http_error_returns_false(self, client):
         with patch("requests.post", side_effect=requests.exceptions.RequestException("Connection error")):

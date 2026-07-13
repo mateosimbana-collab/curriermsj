@@ -3,12 +3,11 @@ import re
 from typing import Any, Callable
 
 import config
-from bot.messages import Buttons, MessageTemplates, build_quote_options
+from bot.messages import Buttons, MessageTemplates
 from domain.constants import (
     INSTRUCTIONS,
     PACKAGE_TYPES,
     REPORT_CATEGORIES,
-    SHIPPING_SERVICES,
     Step,
     normalize_action,
     resolve_package_type,
@@ -192,8 +191,13 @@ class CourierBot:
             return
 
         if action == "cotizar":
-            self.repository.update_user_state(phone, Step.QUOTE_ORIGIN, {})
-            self.whatsapp.send_buttons(phone, MessageTemplates.ask_quote_origin(), Buttons.ORIGIN)
+            data = {"origen": "Bodega USA"}
+            self.repository.update_user_state(phone, Step.QUOTE_DESTINATION, data)
+            self.whatsapp.send_buttons(
+                phone,
+                MessageTemplates.ask_quote_destination(),
+                Buttons.DESTINATION,
+            )
             return
 
         if action == "mis_envios":
@@ -340,16 +344,7 @@ class CourierBot:
     ) -> None:
         value = action if action.startswith("peso_") else event.text
         data["peso"] = resolve_weight(value)
-
-        options = build_quote_options(data.get("tipo_paquete", ""), data.get("peso", ""))
-        data["opciones_envio"] = options
-        self.repository.update_user_state(event.phone_number, Step.QUOTE_SERVICE, data)
-        self.whatsapp.send_buttons(
-            event.phone_number,
-            MessageTemplates.quote_options(data, options),
-            Buttons.SERVICES,
-            footer="Valor por confirmar",
-        )
+        self._submit_quote_request(event.phone_number, data)
 
     def handle_quote_service(
         self,
@@ -357,30 +352,8 @@ class CourierBot:
         action: str,
         data: dict[str, Any],
     ) -> None:
-        service_id = self._service_id(event.text, action)
-        options = data.get("opciones_envio") or build_quote_options(
-            data.get("tipo_paquete", ""),
-            data.get("peso", ""),
-        )
-
-        if service_id not in SHIPPING_SERVICES:
-            self.whatsapp.send_buttons(
-                event.phone_number,
-                MessageTemplates.quote_options(data, options),
-                Buttons.SERVICES,
-            )
-            return
-
-        service = SHIPPING_SERVICES[service_id]
-        data["servicio_envio"] = service["label"]
-        data["entrega_estimada"] = service["eta"]
-        data["cotizacion"] = None
-        self.repository.update_user_state(event.phone_number, Step.QUOTE_SUMMARY, data)
-        self.whatsapp.send_buttons(
-            event.phone_number,
-            MessageTemplates.quote_summary(data),
-            Buttons.CONFIRM_QUOTE,
-        )
+        del action
+        self._submit_quote_request(event.phone_number, data)
 
     def handle_quote_summary(
         self,
@@ -393,19 +366,27 @@ class CourierBot:
             self.whatsapp.send_text(event.phone_number, "Cotización cancelada.")
             self.send_menu(event.phone_number)
             return
+        self._submit_quote_request(event.phone_number, data)
 
-        client = self.repository.get_client(event.phone_number)
-        if client:
-            data["remitente"] = f"{client.get('nombre', '')} {client.get('apellido', '')}".strip()
-            data["telefono_remitente"] = client.get("telefono_contacto") or event.phone_number
-
-        self.repository.update_user_state(event.phone_number, Step.NEW_SHIPMENT_NAME, data)
-
-        if client and data.get("remitente"):
-            self.repository.update_user_state(event.phone_number, Step.NEW_SHIPMENT_RECIPIENT, data)
-            self.whatsapp.send_buttons(event.phone_number, MessageTemplates.ask_recipient_name(), Buttons.BACK)
-        else:
-            self.whatsapp.send_buttons(event.phone_number, MessageTemplates.ask_sender_name(), Buttons.BACK)
+    def _submit_quote_request(self, phone_number: str, data: dict[str, Any]) -> None:
+        description = (
+            "Solicitud de cotizacion manual. "
+            f"Origen: {data.get('origen') or 'Bodega USA'}. "
+            f"Destino: {data.get('destino') or 'Por confirmar'}. "
+            f"Tipo: {data.get('tipo_paquete') or 'Por confirmar'}. "
+            f"Peso: {data.get('peso') or 'Por confirmar'}."
+        )
+        report_id = self.repository.save_report(
+            phone_number,
+            description,
+            category="Cotizacion",
+        )
+        self.repository.reset_user_state(phone_number)
+        self.whatsapp.send_text(
+            phone_number,
+            MessageTemplates.quote_request_created(report_id, data),
+        )
+        self.send_menu(phone_number)
 
     def handle_shipments_list(self, phone_number: str) -> None:
         shipments = self.repository.get_shipments_by_phone(phone_number)

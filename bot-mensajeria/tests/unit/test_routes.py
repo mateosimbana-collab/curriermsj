@@ -2,6 +2,7 @@ import base64
 import hashlib
 import hmac
 import json
+from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -369,6 +370,126 @@ class TestDashboardEndpoints:
         assert resp.status_code == 200
         data = resp.get_json()
         assert "income_today" in data
+
+    def test_finance_summary_calculates_real_cashflow_and_costs(self, client, bot, auth_headers):
+        now = datetime.now(timezone.utc).isoformat()
+        business_day = datetime.now(timezone(timedelta(hours=-5))).date().isoformat()
+        bot.repository._table.side_effect = lambda table: f"https://test.co/rest/v1/{table}"
+
+        def table_rows(_method, url, **_kwargs):
+            if "/envios?" in url:
+                return [{
+                    "valor_cotizado": 100,
+                    "costo_producto": 30,
+                    "servicio_envio": "Categoria B",
+                    "creado_en": now,
+                }]
+            if "/movimientos_financieros?" in url:
+                return [{
+                    "tipo": "egreso",
+                    "categoria": "Alquiler",
+                    "monto": 10,
+                    "tipo_gasto": "fijo",
+                    "fecha": now,
+                }]
+            if "/planilla_personal?" in url:
+                return [{
+                    "nombre": "Ana",
+                    "sueldo": 50,
+                    "descuentos": 5,
+                    "estado_pago": "pagado",
+                    "fecha_pago": now,
+                }]
+            return []
+
+        bot.repository._request.side_effect = table_rows
+        resp = client.get("/api/finance-summary", headers=auth_headers)
+
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["income_month"] == 100
+        assert data["fixed_expenses"] == 55
+        assert data["variable_expenses"] == 30
+        assert data["expenses_month"] == 85
+        assert data["net_profit_month"] == 15
+        assert data["break_even_month"] == 78.57
+        today = next(row for row in data["cashflow_by_day"] if row["date"] == business_day)
+        assert today["ingresos"] == 100
+        assert today["egresos"] == 85
+
+    def test_create_finance_movement(self, client, bot, auth_headers):
+        bot.repository._table.return_value = "https://test.co/rest/v1/movimientos_financieros"
+        bot.repository._request.return_value = [{"id": 7, "tipo": "egreso"}]
+
+        resp = client.post(
+            "/api/finance/movimientos",
+            headers=auth_headers,
+            json={
+                "tipo": "egreso",
+                "categoria": "Alquiler",
+                "descripcion": "Bodega",
+                "monto": "650.25",
+                "tipo_gasto": "fijo",
+                "fecha": "2026-07-12",
+            },
+        )
+
+        assert resp.status_code == 201
+        assert resp.get_json()["id"] == 7
+        payload = bot.repository._request.call_args.kwargs["json"]
+        assert payload["monto"] == 650.25
+        assert payload["tipo_gasto"] == "fijo"
+
+    def test_expense_requires_classification(self, client, auth_headers):
+        resp = client.post(
+            "/api/finance/movimientos",
+            headers=auth_headers,
+            json={"tipo": "egreso", "categoria": "Servicios", "monto": 20},
+        )
+
+        assert resp.status_code == 400
+        assert "tipo_gasto" in resp.get_json()["error"]
+
+    def test_payroll_rejects_discount_above_salary(self, client, auth_headers):
+        resp = client.post(
+            "/api/finance/planilla",
+            headers=auth_headers,
+            json={"nombre": "Ana", "sueldo": 500, "descuentos": 501},
+        )
+
+        assert resp.status_code == 400
+        assert "descuentos" in resp.get_json()["error"]
+
+    def test_create_product_margin(self, client, bot, auth_headers):
+        bot.repository._table.return_value = "https://test.co/rest/v1/margenes_producto"
+        bot.repository._request.return_value = [{"id": 3, "producto": "Zapatos"}]
+
+        resp = client.post(
+            "/api/finance/margenes",
+            headers=auth_headers,
+            json={
+                "producto": "Zapatos",
+                "categoria": "Categoria C",
+                "precio_venta": 25,
+                "costo_producto": 18,
+                "unidades": 4,
+            },
+        )
+
+        assert resp.status_code == 201
+        payload = bot.repository._request.call_args.kwargs["json"]
+        assert payload["unidades"] == 4
+        assert payload["precio_venta"] == 25
+
+    def test_product_margin_rejects_fractional_units(self, client, auth_headers):
+        resp = client.post(
+            "/api/finance/margenes",
+            headers=auth_headers,
+            json={"producto": "Zapatos", "precio_venta": 25, "costo_producto": 18, "unidades": 1.5},
+        )
+
+        assert resp.status_code == 400
+        assert "unidades" in resp.get_json()["error"]
 
 
 class TestCORS:

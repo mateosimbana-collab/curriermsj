@@ -7,21 +7,30 @@
     <script>
         // appState must be defined BEFORE Alpine loads
         function appState() { return {
-            auth: { token: sessionStorage.getItem('cm_token') || '', email: '', password: '', error: '', loading: false },
-            tab: 'dashboard', clock: '', stats: {}, chartsBuilt: false,
+            auth: { token: sessionStorage.getItem('cm_token') || '', user: (()=>{try{return JSON.parse(sessionStorage.getItem('cm_user')||'null')}catch(e){return null}})(), email: '', password: '', error: '', loading: false },
+            tab: 'dashboard', clock: '', stats: {}, operational: {available:true}, chartsBuilt: false,
             sidebarItems: [
                 { id:'dashboard', label:'Dashboard', icon:'layout-dashboard', desc:'Panel principal' },
                 { id:'clientes', label:'Clientes', icon:'users', desc:'Gestion de clientes' },
                 { id:'paquetes', label:'Paquetes', icon:'package', desc:'Gestion de paquetes' },
-                { id:'operaciones', label:'Operaciones', icon:'clipboard-list', desc:'Gestion diaria de envios' },
+                { id:'recepciones', label:'Recepciones USA', icon:'package-check', desc:'Ingreso, fotos y preparacion', roles:['admin','supervisor','agente'] },
+                { id:'operaciones', label:'Despachos', icon:'clipboard-list', desc:'Tracking publico y entregas', roles:['admin','supervisor','agente'] },
+                { id:'cobros', label:'Cobros', icon:'circle-dollar-sign', desc:'Saldos y comprobantes', roles:['admin','supervisor','agente'] },
                 { id:'tracking', label:'Tracking', icon:'search', desc:'Consultar estado de paquetes' },
-                { id:'reportes', label:'Reportes', icon:'file-text', desc:'Exportar reportes' },
-                { id:'auditoria', label:'Auditoria', icon:'history', desc:'Registro de cambios' },
-                { id:'config', label:'Configuracion', icon:'settings', desc:'Parametros del sistema' },
+                { id:'reportes', label:'Reportes', icon:'file-text', desc:'Exportar reportes', roles:['admin','supervisor'] },
+                { id:'auditoria', label:'Auditoria', icon:'history', desc:'Registro de cambios', roles:['admin','supervisor'] },
+                { id:'config', label:'Configuracion', icon:'settings', desc:'Parametros del sistema', roles:['admin'] },
             ],
             get currentTab(){return this.sidebarItems.find(i=>i.id===this.tab)||this.sidebarItems[0]},
+            get role(){return this.auth.user?.rol||'agente'},
+            get isOwner(){return ['admin','supervisor'].includes(this.role)},
+            get canOperate(){return ['admin','supervisor','agente'].includes(this.role)},
+            get visibleSidebarItems(){return this.sidebarItems.filter(item=>!item.roles||item.roles.includes(this.role))},
             clientes:{items:[],page:1,totalPages:1,filtro:''},
+            clientOptions:[],
             paquetes:{items:[],page:1,totalPages:1,filtro:''},
+            recepciones:{items:[],page:1,totalPages:1,filtro:'',estado:'',selected:[],loading:false},
+            cobros:{items:[],estado:'pendiente',loading:false},
             tracking:{code:'',result:null,events:[],error:''},
             audit:{items:[],page:1,totalPages:1,tabla:''},
             opsView:'kanban', opsPaquetes:[], opsKanban:{}, opsEtiquetas:[],
@@ -32,16 +41,20 @@
                 estado:{open:false,paquete:null,etiqueta:'Recibido en USA',descripcion:'',ubicacion:''},
                 detalle:{open:false,item:null,tracking:[]},
                 avanzar:{open:false,item:null,etiqueta:'',descripcion:'',ubicacion:'',saving:false},
+                recepcion:{open:false,cliente_id:'',tracking_externo:'',transportista:'',tienda:'',contenido:'',peso_kg:'',foto_url:'',notas:'',saving:false},
+                consolidar:{open:false,cliente_id:'',destinatario_nombre:'',destinatario_direccion:'',destinatario_ciudad:'',categoria_importacion:'B',modalidad_entrega:'retiro',peso_kg:'',valor_flete:'',fecha_prometida:'',notas_internas:'',saving:false},
+                pago:{open:false,item:null,monto:'',metodo:'transferencia',referencia:'',comprobante_url:'',estado:'pendiente',saving:false},
             },
-            init(){document.getElementById('app-loader')?.remove();this.updateClock();setInterval(()=>this.updateClock(),1000);if(this.auth.token){this.loadDashboard();setInterval(()=>this.loadDashboard(),60000)}},
+            init(){document.getElementById('app-loader')?.remove();this.hydrateUser();this.updateClock();setInterval(()=>this.updateClock(),1000);if(this.auth.token){this.loadDashboard();setInterval(()=>this.loadDashboard(),60000)}},
+            hydrateUser(){if(this.auth.user||!this.auth.token)return;try{const raw=this.auth.token.split('.')[1].replace(/-/g,'+').replace(/_/g,'/');const payload=JSON.parse(atob(raw));this.auth.user={id:payload.sub,rol:payload.rol||'agente',email:payload.email||''};sessionStorage.setItem('cm_user',JSON.stringify(this.auth.user))}catch(e){this.doLogout()}},
             authHeader(){return this.auth.token ? {'Authorization':'Bearer '+this.auth.token} : {}},
             async api(url,opts={}){opts.headers={...opts.headers,...this.authHeader()};const r=await fetch(url,opts);if(r.status===401){this.doLogout();this.auth.error='Sesion expirada'}return r},
             updateClock(){this.clock=new Date().toLocaleTimeString('es-EC',{hour:'2-digit',minute:'2-digit',second:'2-digit'})},
-            async doLogin(){this.auth.error='';this.auth.loading=true;try{const r=await fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:this.auth.email,password:this.auth.password})});const d=await r.json();if(d.data?.token){this.auth.token=d.data.token;this.auth.password='';sessionStorage.setItem('cm_token',d.data.token);this.loadDashboard()}else{this.auth.error=d.error||'Credenciales invalidas'}}catch(e){this.auth.error='Error de conexion'}finally{this.auth.loading=false}},
-            doLogout(){this.auth.token='';sessionStorage.removeItem('cm_token');this.stats={};this.chartsBuilt=!1;this.clientes.items=[];this.paquetes.items=[]},
-            async loadDashboard(){try{const r=await this.api('/api/dashboard');const d=await r.json();if(d.data)this.stats=d.data;this.$nextTick(()=>{this.buildChart();lucide.createIcons()})}catch(e){console.error('Dashboard error:',e)}},
+            async doLogin(){this.auth.error='';this.auth.loading=true;try{const r=await fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:this.auth.email,password:this.auth.password})});const d=await r.json();if(d.data?.token){this.auth.token=d.data.token;this.auth.user=d.data.usuario||null;this.auth.email=this.auth.user?.email||this.auth.email;this.auth.password='';sessionStorage.setItem('cm_token',d.data.token);sessionStorage.setItem('cm_user',JSON.stringify(this.auth.user));this.loadDashboard()}else{this.auth.error=d.error||'Credenciales invalidas'}}catch(e){this.auth.error='Error de conexion'}finally{this.auth.loading=false}},
+            doLogout(){this.auth.token='';this.auth.user=null;sessionStorage.removeItem('cm_token');sessionStorage.removeItem('cm_user');this.stats={};this.operational={available:true};this.chartsBuilt=!1;this.clientes.items=[];this.clientOptions=[];this.paquetes.items=[];this.recepciones.items=[];this.cobros.items=[]},
+            async loadDashboard(){try{const[base,ops]=await Promise.all([this.api('/api/dashboard').then(r=>r.json()),this.api('/api/operaciones/resumen').then(r=>r.json())]);if(base.data)this.stats=base.data;if(ops.data)this.operational=ops.data;this.$nextTick(()=>{this.buildChart();lucide.createIcons()})}catch(e){console.error('Dashboard error:',e)}},
             buildChart(){if(!this.chartsBuilt&&document.getElementById('statusChart')){try{this.chartsBuilt=!0;const e=this.stats.paquetes_por_estado||[];const t=document.getElementById('statusChart').getContext('2d');new Chart(t,{type:'doughnut',data:{labels:e.map(r=>r.etiqueta_actual||r.estado_actual||r.estado),datasets:[{data:e.map(r=>r.count),backgroundColor:['#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#ec4899']}]},options:{cutout:'65%',plugins:{legend:{display:!1,position:'bottom'}}}})}catch(e){console.error('Chart error:',e)}}},
-            setTab(id){this.tab=id;if(id==='clientes'&&!this.clientes.items.length)this.loadClientes();if(id==='paquetes'&&!this.paquetes.items.length)this.loadPaquetes();if(id==='dashboard')this.loadDashboard();if(id==='operaciones')this.loadOperaciones();if(id==='auditoria')this.loadAudit();this.$nextTick(()=>lucide.createIcons())},
+            setTab(id){this.tab=id;if(id==='clientes'&&!this.clientes.items.length)this.loadClientes();if(id==='paquetes'&&!this.paquetes.items.length)this.loadPaquetes();if(id==='recepciones')this.loadRecepciones();if(id==='cobros')this.loadCobros();if(id==='dashboard')this.loadDashboard();if(id==='operaciones')this.loadOperaciones();if(id==='auditoria')this.loadAudit();this.$nextTick(()=>lucide.createIcons())},
             async loadAudit(){try{const f=new URLSearchParams({page:this.audit.page,per_page:25});if(this.audit.tabla)f.set('tabla',this.audit.tabla);const r=await this.api('/api/audit?'+f.toString());const d=await r.json();if(d.data){this.audit.items=d.data.data||[];this.audit.totalPages=Math.ceil(d.data.total/d.data.per_page)||1}this.$nextTick(()=>lucide.createIcons())}catch(e){console.error(e)}},
             formatDate(d){if(!d)return'--';try{return new Date(d).toLocaleString('es-EC',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})}catch(e){return d}},
             estadoBadge(est){const e=(est||'').toLowerCase();if(e.includes('entreg')||e==='entregado')return'bg-emerald-100 text-emerald-700';if(e.includes('transito')||e.includes('ruta'))return'bg-blue-100 text-blue-700';if(e.includes('aduana'))return'bg-violet-100 text-violet-700';if(e.includes('destino'))return'bg-cyan-100 text-cyan-700';if(e.includes('devuel')||e.includes('reten'))return'bg-red-100 text-red-700';if(e.includes('recibido'))return'bg-amber-100 text-amber-700';return'bg-slate-100 text-slate-600'},
@@ -61,6 +74,26 @@
             openPaqueteModal(){const m=this.modals.paquete;m.open=!0;m.cliente_id='';m.remitente='';m.pais='Estados Unidos';m.destinatario='';m.destino='';m.contenido='';m.peso=0.01},
             openTrackingModal(p){this.modals.estado.paquete=p;this.modals.estado.etiqueta='';this.modals.estado.descripcion='';this.modals.estado.ubicacion='';this.modals.estado.open=!0},
             editPaqueteEstado(p){this.modals.estado.paquete=p;this.modals.estado.etiqueta=p.estado_actual||'Recibido en USA';this.modals.estado.descripcion='';this.modals.estado.ubicacion='';this.modals.estado.open=!0},
+            formatMoney(value){return new Intl.NumberFormat('es-EC',{style:'currency',currency:'USD'}).format(Number(value)||0)},
+            receptionLabel(state){return({por_procesar:'Por procesar',fotos_enviadas:'Fotos enviadas',esperando_decision:'Esperando cliente',despachar:'Despachar',armado:'Armado',consolidado:'Consolidado'})[state]||state||'Por procesar'},
+            receptionBadge(state){return({por_procesar:'bg-amber-100 text-amber-700',fotos_enviadas:'bg-blue-100 text-blue-700',esperando_decision:'bg-violet-100 text-violet-700',despachar:'bg-emerald-100 text-emerald-700',armado:'bg-yellow-100 text-yellow-800',consolidado:'bg-slate-100 text-slate-600'})[state]||'bg-slate-100 text-slate-600'},
+            nextReceptionState(state){return({por_procesar:'fotos_enviadas',fotos_enviadas:'esperando_decision',esperando_decision:'despachar',despachar:'armado'})[state]||''},
+            async loadClientOptions(){if(this.clientOptions.length)return;try{const r=await this.api('/api/clientes?per_page=100');const d=await r.json();this.clientOptions=d?.data?.data||d?.data||[]}catch(e){console.error('Client options error:',e)}},
+            async loadRecepciones(){this.recepciones.loading=!0;await this.loadClientOptions();try{const params=new URLSearchParams({page:this.recepciones.page,per_page:100});if(this.recepciones.filtro)params.set('busqueda',this.recepciones.filtro);if(this.recepciones.estado)params.set('estado',this.recepciones.estado);const r=await this.api('/api/recepciones?'+params.toString());const d=await r.json();if(d.data){this.recepciones.items=d.data.data||[];this.recepciones.totalPages=Math.ceil(d.data.total/d.data.per_page)||1}else if(d.error){this.operational.available=!1}this.$nextTick(()=>lucide.createIcons())}catch(e){console.error('Recepciones error:',e)}finally{this.recepciones.loading=!1}},
+            openReceptionModal(){this.loadClientOptions();this.modals.recepcion={open:true,cliente_id:'',tracking_externo:'',transportista:'',tienda:'',contenido:'',peso_kg:'',foto_url:'',notas:'',saving:false}},
+            async saveReception(){const m=this.modals.recepcion;if(!m.cliente_id||!m.tracking_externo){alert('Seleccione el cliente e ingrese el tracking');return}m.saving=!0;try{const r=await this.api('/api/recepciones',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({cliente_id:m.cliente_id,tracking_externo:m.tracking_externo,transportista:m.transportista,tienda:m.tienda,contenido:m.contenido,peso_kg:m.peso_kg||null,foto_url:m.foto_url,notas:m.notas})});const d=await r.json();if(d.data){m.open=!1;this.loadRecepciones();this.loadDashboard()}else alert(d.error||'No se pudo registrar la recepcion')}catch(e){alert('Error de conexion')}finally{m.saving=!1}},
+            async updateReceptionState(item,state){if(!state)return;try{const r=await this.api('/api/recepciones/'+item.id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({estado_operativo:state})});const d=await r.json();if(d.data){item.estado_operativo=state;this.loadDashboard()}else alert(d.error||'No se pudo actualizar')}catch(e){alert('Error de conexion')}},
+            async advanceReception(item){const next=this.nextReceptionState(item.estado_operativo);if(next)await this.updateReceptionState(item,next)},
+            canSelectReception(item){return !item.despacho_id&&['despachar','armado'].includes(item.estado_operativo)},
+            toggleReception(id){const index=this.recepciones.selected.indexOf(id);if(index>=0)this.recepciones.selected.splice(index,1);else this.recepciones.selected.push(id)},
+            selectedReceptionRows(){return this.recepciones.items.filter(item=>this.recepciones.selected.includes(item.id))},
+            openConsolidationModal(){const rows=this.selectedReceptionRows();if(!rows.length){alert('Seleccione recepciones listas para despachar');return}const first=rows[0],client=first.clientes||{};this.modals.consolidar={open:true,cliente_id:first.cliente_id,destinatario_nombre:client.nombre_completo||'',destinatario_direccion:client.direccion||client.ciudad||'',destinatario_ciudad:client.ciudad||'',categoria_importacion:'B',modalidad_entrega:'retiro',peso_kg:rows.reduce((sum,row)=>sum+(Number(row.peso_kg)||0),0).toFixed(2),valor_flete:'',fecha_prometida:'',notas_internas:'',saving:false}},
+            async saveConsolidation(){const m=this.modals.consolidar;if(!m.destinatario_nombre||!m.destinatario_direccion||!m.valor_flete){alert('Complete destinatario, destino y valor a cobrar');return}m.saving=!0;try{const r=await this.api('/api/recepciones/consolidar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({recepcion_ids:this.recepciones.selected,paquete:{cliente_id:m.cliente_id,destinatario_nombre:m.destinatario_nombre,destinatario_direccion:m.destinatario_direccion,destinatario_ciudad:m.destinatario_ciudad,categoria_importacion:m.categoria_importacion,modalidad_entrega:m.modalidad_entrega,peso_kg:m.peso_kg||null,valor_flete:m.valor_flete,fecha_prometida:m.fecha_prometida||undefined,notas_internas:m.notas_internas}})});const d=await r.json();if(d.data){m.open=!1;this.recepciones.selected=[];await this.loadRecepciones();this.loadDashboard();alert('Despacho creado: '+(d.data.paquete?.tracking_code||'guia generada'))}else alert(d.error||'No se pudo crear el despacho')}catch(e){alert('Error de conexion')}finally{m.saving=!1}},
+            async loadCobros(){this.cobros.loading=!0;try{const params=new URLSearchParams();if(this.cobros.estado)params.set('estado',this.cobros.estado);const r=await this.api('/api/cobros?'+params.toString());const d=await r.json();this.cobros.items=d.data||[];this.$nextTick(()=>lucide.createIcons())}catch(e){console.error('Cobros error:',e)}finally{this.cobros.loading=!1}},
+            paymentBadge(state){return state==='pagado'?'bg-emerald-100 text-emerald-700':state==='abono'?'bg-blue-100 text-blue-700':'bg-amber-100 text-amber-700'},
+            openPaymentModal(item){this.modals.pago={open:true,item,monto:item.saldo_pendiente||'',metodo:'transferencia',referencia:'',comprobante_url:'',estado:'pendiente',saving:false}},
+            async savePayment(){const m=this.modals.pago;if(!m.monto){alert('Ingrese el monto');return}m.saving=!0;try{const r=await this.api('/api/pagos',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({paquete_id:m.item.id,monto:m.monto,metodo:m.metodo,referencia:m.referencia,comprobante_url:m.comprobante_url,estado:this.isOwner?m.estado:'pendiente'})});const d=await r.json();if(d.data){m.open=!1;this.loadCobros();this.loadDashboard()}else alert(d.error||'No se pudo registrar el pago')}catch(e){alert('Error de conexion')}finally{m.saving=!1}},
+            async reviewPayment(payment,state){try{const r=await this.api('/api/pagos/'+payment.id+'/estado',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({estado:state})});const d=await r.json();if(d.data){await this.loadCobros();const refreshed=this.cobros.items.find(item=>item.id===this.modals.pago.item?.id);if(refreshed)this.modals.pago.item=refreshed;this.loadDashboard()}else alert(d.error||'No se pudo revisar el pago')}catch(e){alert('Error de conexion')}},
             async loadOperaciones(){try{this.opsView='kanban';const[pr,er,cl]=await Promise.all([this.api('/api/paquetes?per_page=200').then(r=>r.json()),this.api('/api/etiquetas').then(r=>r.json()),this.api('/api/clientes?per_page=200').then(r=>r.json())]);this.opsPaquetes=(pr?.data?.data||pr?.data||[]);this.opsEtiquetas=(er?.data||[]);if(!this.clientes.items.length&&cl?.data?.data)this.clientes.items=cl.data.data;const grupos={},colors={recibido_en_usa:'#f59e0b',en_transito:'#3b82f6',en_aduana:'#8b5cf6',en_destino:'#06b6d4',en_ruta_de_entrega:'#2563eb',entregado:'#10b981',devuelto:'#ef4444',retenido:'#dc2626'},orden=['recibido_en_usa','en_transito','en_aduana','en_destino','en_ruta_de_entrega','entregado','devuelto','retenido'];for(const k of orden)grupos[k]={color:colors[k]||'#94a3b8',items:[]};for(const p of this.opsPaquetes){const est=(p.estado_actual||'recibido_en_usa').toLowerCase().replace(/ /g,'_');if(grupos[est])grupos[est].items.push(p);else grupos.recibido_en_usa.items.push(p)}this.opsKanban=grupos;this.$nextTick(()=>lucide.createIcons())}catch(e){console.error('Error loading operaciones:',e);this.opsPaquetes=[]}},
             async opsVerDetalle(p){this.modals.detalle.item=p;this.modals.detalle.tracking=[];this.modals.detalle.open=!0;try{const r=await this.api('/api/paquetes/'+p.id+'/tracking');const d=await r.json();this.modals.detalle.tracking=(d?.data||[]);this.$nextTick(()=>lucide.createIcons())}catch(e){console.error(e)}},
             opsAvanzar(p){this.modals.avanzar.item=p;this.modals.avanzar.etiqueta='';this.modals.avanzar.descripcion='';this.modals.avanzar.ubicacion='';this.modals.avanzar.saving=!1;this.modals.avanzar.open=!0},
@@ -166,10 +199,10 @@
 
     <!-- ============ APP LAYOUT ============ -->
     <template x-if="auth.token">
-        <div class="h-screen flex">
+        <div class="h-screen flex flex-col md:flex-row">
             <!-- SIDEBAR -->
-            <aside class="sidebar w-64 flex-shrink-0 h-screen flex flex-col">
-                <div class="p-5 border-b border-slate-200">
+            <aside class="sidebar w-full md:w-64 flex-shrink-0 h-auto md:h-screen flex flex-col">
+                <div class="p-3 md:p-5 border-b border-slate-200">
                     <div class="flex items-center gap-3">
                         <div class="w-9 h-9 rounded-lg bg-gradient-to-br from-blue-600 to-blue-400 flex items-center justify-center shadow-sm">
                             <i data-lucide="zap" class="w-5 h-5 text-white"></i>
@@ -180,29 +213,30 @@
                         </div>
                     </div>
                 </div>
-                <nav class="flex-1 p-3 space-y-1 overflow-y-auto">
-                    <p class="px-3 py-2 text-[10px] font-semibold text-slate-400 uppercase tracking-widest">Menu</p>
-                    <template x-for="item in sidebarItems" :key="item.id">
-                        <a @click="setTab(item.id)" class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-md text-sm" :class="{ 'active': tab === item.id }">
+                <nav class="flex-1 p-2 md:p-3 flex md:block gap-1 md:space-y-1 overflow-x-auto md:overflow-y-auto">
+                    <p class="hidden md:block px-3 py-2 text-[10px] font-semibold text-slate-400 uppercase tracking-widest">Menu</p>
+                    <template x-for="item in visibleSidebarItems" :key="item.id">
+                        <a @click="setTab(item.id)" class="sidebar-link flex flex-shrink-0 items-center gap-2 md:gap-3 px-3 py-2.5 rounded-md text-xs md:text-sm" :class="{ 'active': tab === item.id }">
                             <i :data-lucide="item.icon" class="w-4 h-4"></i>
                             <span x-text="item.label"></span>
                         </a>
                     </template>
                 </nav>
-                <div class="p-4 border-t border-slate-200">
+                <div class="hidden md:block p-4 border-t border-slate-200">
                     <div class="flex items-center gap-2 text-xs text-slate-500">
                         <div class="status-dot bg-emerald-500 animate-pulse"></div>
                         <span>Conectado</span>
                     </div>
-                    <p class="text-[10px] text-slate-400 mt-1" x-text="auth.email"></p>
+                    <p class="text-[10px] text-slate-500 mt-1" x-text="auth.user?.nombre || auth.user?.email || auth.email"></p>
+                    <p class="text-[10px] text-slate-400 capitalize" x-text="role"></p>
                     <button @click="doLogout()" class="text-[10px] text-red-500 hover:text-red-700 mt-1">Cerrar sesion</button>
                 </div>
             </aside>
 
             <!-- MAIN CONTENT -->
-            <main class="flex-1 flex flex-col overflow-hidden">
+            <main class="flex-1 min-w-0 flex flex-col overflow-hidden">
                 <!-- Header -->
-                <header class="bg-white border-b border-slate-200 px-6 py-3 flex items-center justify-between flex-shrink-0">
+                <header class="bg-white border-b border-slate-200 px-4 md:px-6 py-3 flex items-center justify-between flex-shrink-0">
                     <div>
                         <h2 class="text-lg font-semibold text-slate-900" x-text="currentTab.label"></h2>
                         <p class="text-xs text-slate-500 mt-0.5" x-text="currentTab.desc"></p>
@@ -216,7 +250,7 @@
                 </header>
 
                 <!-- Content area -->
-                <div class="flex-1 overflow-y-auto p-6">
+                <div class="flex-1 overflow-y-auto p-3 sm:p-4 md:p-6">
                     <!-- DASHBOARD -->
                     <div x-show="tab === 'dashboard'" class="space-y-6 fade-in">
                         <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -240,6 +274,37 @@
                                 <p class="kpi-value" x-text="stats.total_clientes ?? '--'"></p>
                                 <p class="text-xs text-slate-500 mt-1.5" x-text="(stats.total_prospectos ?? 0) + ' prospectos'"></p>
                             </div>
+                        </section>
+
+                        <div x-show="!operational.available" class="border border-amber-200 bg-amber-50 px-4 py-3 rounded-lg text-xs text-amber-800">
+                            El flujo operativo requiere aplicar la migracion 005 en Supabase.
+                        </div>
+
+                        <section x-show="isOwner" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                            <div class="card p-4">
+                                <div class="flex items-center justify-between"><span class="kpi-label">Cartera pendiente</span><i data-lucide="wallet-cards" class="w-4 h-4 text-rose-500"></i></div>
+                                <p class="text-2xl font-bold text-slate-900 mt-2" x-text="formatMoney(operational.cartera_pendiente)"></p>
+                            </div>
+                            <div class="card p-4">
+                                <div class="flex items-center justify-between"><span class="kpi-label">Despachos por cobrar</span><i data-lucide="receipt-text" class="w-4 h-4 text-amber-500"></i></div>
+                                <p class="text-2xl font-bold text-slate-900 mt-2" x-text="operational.cobros_pendientes ?? 0"></p>
+                            </div>
+                            <div class="card p-4">
+                                <div class="flex items-center justify-between"><span class="kpi-label">Comprobantes</span><i data-lucide="badge-check" class="w-4 h-4 text-teal-500"></i></div>
+                                <p class="text-2xl font-bold text-slate-900 mt-2" x-text="operational.comprobantes_por_verificar ?? 0"></p>
+                                <p class="text-[10px] text-slate-400 mt-1">por verificar</p>
+                            </div>
+                            <div class="card p-4">
+                                <div class="flex items-center justify-between"><span class="kpi-label">Fuera de fecha</span><i data-lucide="triangle-alert" class="w-4 h-4 text-red-500"></i></div>
+                                <p class="text-2xl font-bold text-slate-900 mt-2" x-text="operational.envios_atrasados ?? 0"></p>
+                            </div>
+                        </section>
+
+                        <section x-show="!isOwner" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                            <div class="card p-4"><span class="kpi-label">Por procesar</span><p class="text-2xl font-bold text-slate-900 mt-2" x-text="operational.por_procesar ?? 0"></p></div>
+                            <div class="card p-4"><span class="kpi-label">Esperando cliente</span><p class="text-2xl font-bold text-slate-900 mt-2" x-text="operational.esperando_cliente ?? 0"></p></div>
+                            <div class="card p-4"><span class="kpi-label">Por despachar</span><p class="text-2xl font-bold text-slate-900 mt-2" x-text="operational.por_despachar ?? 0"></p></div>
+                            <div class="card p-4"><span class="kpi-label">Pagos por revisar</span><p class="text-2xl font-bold text-slate-900 mt-2" x-text="operational.comprobantes_por_verificar ?? 0"></p></div>
                         </section>
 
                         <section class="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -295,7 +360,7 @@
                                 <input type="text" x-model="clientes.filtro" class="input-field" placeholder="Buscar por nombre, cedula o telefono...">
                                 <button @click="loadClientes()" class="btn btn-primary">Buscar</button>
                             </div>
-                            <button @click="openClienteModal()" class="btn btn-primary flex items-center gap-1.5"><i data-lucide="plus" class="w-4 h-4"></i> Nuevo Cliente</button>
+                            <button x-show="canOperate" @click="openClienteModal()" class="btn btn-primary flex items-center gap-1.5"><i data-lucide="plus" class="w-4 h-4"></i> Nuevo Cliente</button>
                         </div>
                         <div class="card overflow-hidden">
                             <table class="w-full text-xs">
@@ -318,8 +383,8 @@
                                             <td class="py-2.5 px-3 text-slate-500" x-text="c.ciudad"></td>
                                             <td class="py-2.5 px-3 text-slate-400 text-[10px]" x-text="formatDate(c.created_at)"></td>
                                             <td class="py-2.5 px-3 text-right">
-                                                <button @click="editCliente(c)" class="text-primary-600 hover:text-primary-800 text-[10px] font-medium">Editar</button>
-                                                <button @click="deleteCliente(c.id)" class="text-red-500 hover:text-red-700 text-[10px] font-medium ml-2">Eliminar</button>
+                                                <button x-show="canOperate" @click="editCliente(c)" class="text-primary-600 hover:text-primary-800 text-[10px] font-medium">Editar</button>
+                                                <button x-show="isOwner" @click="deleteCliente(c.id)" class="text-red-500 hover:text-red-700 text-[10px] font-medium ml-2">Eliminar</button>
                                             </td>
                                         </tr>
                                     </template>
@@ -343,7 +408,7 @@
                                 <input type="text" x-model="paquetes.filtro" class="input-field" placeholder="Buscar por tracking, remitente...">
                                 <button @click="loadPaquetes()" class="btn btn-primary">Buscar</button>
                             </div>
-                            <button @click="openPaqueteModal()" class="btn btn-primary flex items-center gap-1.5"><i data-lucide="plus" class="w-4 h-4"></i> Nuevo Paquete</button>
+                            <button x-show="canOperate" @click="openPaqueteModal()" class="btn btn-primary flex items-center gap-1.5"><i data-lucide="plus" class="w-4 h-4"></i> Nuevo Paquete</button>
                         </div>
                         <div class="card overflow-hidden">
                             <table class="w-full text-xs">
@@ -366,8 +431,7 @@
                                             <td class="py-2.5 px-3"><span class="badge" :class="estadoBadge(p.estado_actual)" x-text="p.etiqueta_actual || p.estado_actual"></span></td>
                                             <td class="py-2.5 px-3 text-slate-400 text-[10px]" x-text="formatDate(p.created_at)"></td>
                                             <td class="py-2.5 px-3 text-right">
-                                                <button @click="openTrackingModal(p)" class="text-primary-600 hover:text-primary-800 text-[10px] font-medium">Tracking</button>
-                                                <button @click="editPaqueteEstado(p)" class="text-amber-600 hover:text-amber-800 text-[10px] font-medium ml-2">Estado</button>
+                                                <button x-show="canOperate" @click="editPaqueteEstado(p)" class="text-amber-600 hover:text-amber-800 text-[10px] font-medium">Estado</button>
                                             </td>
                                         </tr>
                                     </template>
@@ -381,6 +445,68 @@
                                 <button @click="prevPage('paquetes')" class="btn btn-secondary text-xs" :disabled="paquetes.page <= 1">Anterior</button>
                                 <button @click="nextPage('paquetes')" class="btn btn-secondary text-xs" :disabled="paquetes.page >= paquetes.totalPages">Siguiente</button>
                             </div>
+                        </div>
+                    </div>
+
+                    <!-- RECEPCIONES EN USA -->
+                    <div x-show="tab === 'recepciones'" class="space-y-5 fade-in">
+                        <div class="flex flex-wrap items-center justify-between gap-3">
+                            <div class="flex flex-wrap gap-2 flex-1">
+                                <input type="search" x-model="recepciones.filtro" @keyup.enter="loadRecepciones()" class="input-field max-w-xs" placeholder="Tracking, tienda o transportista">
+                                <select x-model="recepciones.estado" @change="recepciones.page=1;loadRecepciones()" class="input-field max-w-[190px]">
+                                    <option value="">Todos los estados</option>
+                                    <option value="por_procesar">Por procesar</option>
+                                    <option value="fotos_enviadas">Fotos enviadas</option>
+                                    <option value="esperando_decision">Esperando cliente</option>
+                                    <option value="despachar">Despachar</option>
+                                    <option value="armado">Armado</option>
+                                    <option value="consolidado">Consolidado</option>
+                                </select>
+                                <button @click="loadRecepciones()" class="btn btn-secondary" title="Actualizar recepciones"><i data-lucide="refresh-cw" class="w-4 h-4"></i></button>
+                            </div>
+                            <div class="flex gap-2">
+                                <button @click="openConsolidationModal()" class="btn btn-success flex items-center gap-1.5" :disabled="!recepciones.selected.length" :class="{'opacity-50 cursor-not-allowed':!recepciones.selected.length}"><i data-lucide="package-plus" class="w-4 h-4"></i> Crear despacho <span x-show="recepciones.selected.length" x-text="'(' + recepciones.selected.length + ')'"> </span></button>
+                                <button @click="openReceptionModal()" class="btn btn-primary flex items-center gap-1.5"><i data-lucide="plus" class="w-4 h-4"></i> Nueva recepcion</button>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                            <div class="card p-4"><p class="kpi-label">Por procesar</p><p class="text-xl font-bold mt-1" x-text="operational.por_procesar ?? 0"></p></div>
+                            <div class="card p-4"><p class="kpi-label">Esperando cliente</p><p class="text-xl font-bold mt-1" x-text="operational.esperando_cliente ?? 0"></p></div>
+                            <div class="card p-4"><p class="kpi-label">Listas para despacho</p><p class="text-xl font-bold mt-1" x-text="operational.por_despachar ?? 0"></p></div>
+                            <div class="card p-4"><p class="kpi-label">Seleccionadas</p><p class="text-xl font-bold mt-1" x-text="recepciones.selected.length"></p></div>
+                        </div>
+
+                        <div class="card overflow-hidden">
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-xs min-w-[980px]">
+                                    <thead><tr class="text-slate-400 border-b border-slate-200 bg-slate-50">
+                                        <th class="w-10 py-2.5 px-3"></th>
+                                        <th class="text-left py-2.5 px-3 font-medium">Tracking externo</th>
+                                        <th class="text-left py-2.5 px-3 font-medium">Cliente</th>
+                                        <th class="text-left py-2.5 px-3 font-medium">Origen</th>
+                                        <th class="text-left py-2.5 px-3 font-medium">Estado interno</th>
+                                        <th class="text-left py-2.5 px-3 font-medium">Peso</th>
+                                        <th class="text-left py-2.5 px-3 font-medium">Recibido</th>
+                                        <th class="text-right py-2.5 px-3 font-medium">Accion</th>
+                                    </tr></thead>
+                                    <tbody>
+                                        <template x-for="r in recepciones.items" :key="r.id">
+                                            <tr class="border-b border-slate-100 table-row">
+                                                <td class="py-2.5 px-3"><input type="checkbox" x-model="recepciones.selected" :value="r.id" :disabled="!canSelectReception(r)" class="accent-blue-600" :title="canSelectReception(r)?'Seleccionar para consolidar':'Avanza hasta Despachar o Armado'"></td>
+                                                <td class="py-2.5 px-3"><div class="flex items-center gap-2"><span class="font-mono text-primary-600 font-semibold" x-text="r.tracking_externo"></span><a x-show="r.foto_url" :href="r.foto_url" target="_blank" rel="noopener noreferrer" class="text-slate-400 hover:text-primary-600" title="Ver evidencia"><i data-lucide="image" class="w-3.5 h-3.5"></i></a></div><span class="text-[10px] text-slate-400" x-text="r.contenido || 'Sin detalle'"></span></td>
+                                                <td class="py-2.5 px-3"><p class="font-medium text-slate-700" x-text="r.clientes?.nombre_completo || '--'"></p><p class="text-[10px] text-slate-400" x-text="r.clientes?.cedula || ''"></p></td>
+                                                <td class="py-2.5 px-3"><p class="text-slate-600" x-text="r.tienda || '--'"></p><p class="text-[10px] text-slate-400" x-text="r.transportista || ''"></p></td>
+                                                <td class="py-2.5 px-3"><span class="badge" :class="receptionBadge(r.estado_operativo)" x-text="receptionLabel(r.estado_operativo)"></span></td>
+                                                <td class="py-2.5 px-3 text-slate-500" x-text="r.peso_kg ? r.peso_kg + ' kg' : '--'"></td>
+                                                <td class="py-2.5 px-3 text-slate-400 text-[10px]" x-text="formatDate(r.recibido_en)"></td>
+                                                <td class="py-2.5 px-3 text-right"><button x-show="nextReceptionState(r.estado_operativo)" @click="advanceReception(r)" class="btn btn-secondary text-[10px] py-1 px-2 inline-flex items-center gap-1" :title="'Mover a ' + receptionLabel(nextReceptionState(r.estado_operativo))"><i data-lucide="arrow-right" class="w-3 h-3"></i><span x-text="receptionLabel(nextReceptionState(r.estado_operativo))"></span></button><span x-show="r.estado_operativo==='consolidado'" class="text-[10px] font-mono text-slate-400" x-text="r.paquetes?.tracking_code || 'Consolidado'"></span></td>
+                                            </tr>
+                                        </template>
+                                    </tbody>
+                                </table>
+                            </div>
+                            <p class="text-center text-xs text-slate-400 py-8" x-show="!recepciones.loading && !recepciones.items.length">No hay recepciones con estos filtros.</p>
                         </div>
                     </div>
 
@@ -503,6 +629,60 @@
                                     </div>
                                 </form>
                             </div>
+                        </div>
+                    </div>
+
+                    <!-- COBROS -->
+                    <div x-show="tab === 'cobros'" class="space-y-5 fade-in">
+                        <div class="flex flex-wrap items-center justify-between gap-3">
+                            <div class="flex items-center gap-2">
+                                <select x-model="cobros.estado" @change="loadCobros()" class="input-field min-w-[190px]">
+                                    <option value="">Todos los cobros</option>
+                                    <option value="pendiente">Pendientes</option>
+                                    <option value="abono">Con abono</option>
+                                    <option value="pagado">Pagados</option>
+                                </select>
+                                <button @click="loadCobros()" class="btn btn-secondary" title="Actualizar cobros"><i data-lucide="refresh-cw" class="w-4 h-4"></i></button>
+                            </div>
+                            <p class="text-xs text-slate-500" x-text="cobros.items.length + ' despachos'"></p>
+                        </div>
+
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                            <div class="card p-4"><p class="kpi-label">Cartera pendiente</p><p class="text-2xl font-bold text-rose-600 mt-1" x-text="isOwner ? formatMoney(operational.cartera_pendiente) : '--'"></p></div>
+                            <div class="card p-4"><p class="kpi-label">Despachos por cobrar</p><p class="text-2xl font-bold text-slate-900 mt-1" x-text="operational.cobros_pendientes ?? 0"></p></div>
+                            <div class="card p-4"><p class="kpi-label">Comprobantes por verificar</p><p class="text-2xl font-bold text-amber-600 mt-1" x-text="operational.comprobantes_por_verificar ?? 0"></p></div>
+                        </div>
+
+                        <div class="card overflow-hidden">
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-xs min-w-[900px]">
+                                    <thead><tr class="text-slate-400 border-b border-slate-200 bg-slate-50">
+                                        <th class="text-left py-2.5 px-3 font-medium">Guia</th>
+                                        <th class="text-left py-2.5 px-3 font-medium">Cliente</th>
+                                        <th class="text-right py-2.5 px-3 font-medium">Cobrar</th>
+                                        <th class="text-right py-2.5 px-3 font-medium">Pagado</th>
+                                        <th class="text-right py-2.5 px-3 font-medium">Saldo</th>
+                                        <th class="text-left py-2.5 px-3 font-medium">Estado</th>
+                                        <th class="text-left py-2.5 px-3 font-medium">Fecha limite</th>
+                                        <th class="text-right py-2.5 px-3 font-medium">Accion</th>
+                                    </tr></thead>
+                                    <tbody>
+                                        <template x-for="item in cobros.items" :key="item.id">
+                                            <tr class="border-b border-slate-100 table-row">
+                                                <td class="py-2.5 px-3 font-mono text-primary-600 font-semibold" x-text="item.tracking_code"></td>
+                                                <td class="py-2.5 px-3"><p class="font-medium text-slate-700" x-text="item.clientes?.nombre_completo || '--'"></p><p class="text-[10px] text-slate-400" x-text="item.clientes?.telefono || ''"></p></td>
+                                                <td class="py-2.5 px-3 text-right text-slate-600" x-text="formatMoney(item.valor_flete)"></td>
+                                                <td class="py-2.5 px-3 text-right text-emerald-600" x-text="formatMoney(item.total_pagado)"></td>
+                                                <td class="py-2.5 px-3 text-right font-semibold" :class="item.saldo_pendiente>0?'text-rose-600':'text-emerald-600'" x-text="formatMoney(item.saldo_pendiente)"></td>
+                                                <td class="py-2.5 px-3"><span class="badge" :class="paymentBadge(item.estado_pago)" x-text="item.estado_pago"></span><span x-show="(item.pagos_paquete||[]).some(p=>p.estado==='pendiente')" class="block text-[10px] text-amber-600 mt-1">Comprobante por revisar</span></td>
+                                                <td class="py-2.5 px-3 text-slate-500" x-text="item.fecha_prometida || '--'"></td>
+                                                <td class="py-2.5 px-3 text-right"><button @click="openPaymentModal(item)" class="btn btn-secondary text-[10px] py-1 px-2 inline-flex items-center gap-1"><i data-lucide="receipt" class="w-3 h-3"></i> Pagos</button></td>
+                                            </tr>
+                                        </template>
+                                    </tbody>
+                                </table>
+                            </div>
+                            <p class="text-center text-xs text-slate-400 py-8" x-show="!cobros.loading && !cobros.items.length">No hay cobros con este filtro.</p>
                         </div>
                     </div>
 
@@ -682,6 +862,90 @@
     </template>
 
     <!-- ============ MODALS ============ -->
+    <!-- MODAL: Nueva recepcion -->
+    <template x-if="modals.recepcion.open">
+        <div class="fixed inset-0 modal-overlay flex items-center justify-center z-50 p-4" @click.self="modals.recepcion.open=false">
+            <div class="card p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto fade-in">
+                <div class="flex items-center justify-between mb-5"><div><h3 class="text-sm font-bold text-slate-900">Nueva recepcion en USA</h3><p class="text-xs text-slate-500 mt-1">Registra el tracking original antes de procesar las fotos.</p></div><button @click="modals.recepcion.open=false" class="text-slate-400 hover:text-slate-600" title="Cerrar"><i data-lucide="x" class="w-5 h-5"></i></button></div>
+                <form @submit.prevent="saveReception()" class="space-y-4">
+                    <div><label class="block text-xs font-medium text-slate-600 mb-1">Cliente *</label><select x-model="modals.recepcion.cliente_id" class="input-field" required><option value="">Seleccionar cliente...</option><template x-for="c in clientOptions" :key="c.id"><option :value="c.id" x-text="c.nombre_completo + ' - ' + c.cedula"></option></template></select></div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div><label class="block text-xs font-medium text-slate-600 mb-1">Tracking externo *</label><input type="text" x-model="modals.recepcion.tracking_externo" class="input-field uppercase" required></div>
+                        <div><label class="block text-xs font-medium text-slate-600 mb-1">Transportista</label><input type="text" x-model="modals.recepcion.transportista" class="input-field" placeholder="UPS, FedEx, USPS..."></div>
+                        <div><label class="block text-xs font-medium text-slate-600 mb-1">Tienda</label><input type="text" x-model="modals.recepcion.tienda" class="input-field" placeholder="Amazon, Walmart..."></div>
+                        <div><label class="block text-xs font-medium text-slate-600 mb-1">Peso (kg)</label><input type="number" min="0" step="0.01" x-model="modals.recepcion.peso_kg" class="input-field"></div>
+                    </div>
+                    <div><label class="block text-xs font-medium text-slate-600 mb-1">Contenido</label><input type="text" x-model="modals.recepcion.contenido" class="input-field" placeholder="Detalle visible para bodega"></div>
+                    <div><label class="block text-xs font-medium text-slate-600 mb-1">Enlace de evidencia</label><input type="url" x-model="modals.recepcion.foto_url" class="input-field" placeholder="https://..."></div>
+                    <div><label class="block text-xs font-medium text-slate-600 mb-1">Notas internas</label><textarea x-model="modals.recepcion.notas" class="input-field" rows="2"></textarea></div>
+                    <div class="flex justify-end gap-2 pt-3 border-t border-slate-200"><button type="button" @click="modals.recepcion.open=false" class="btn btn-secondary">Cancelar</button><button type="submit" class="btn btn-primary" :disabled="modals.recepcion.saving" x-text="modals.recepcion.saving?'Guardando...':'Registrar recepcion'"></button></div>
+                </form>
+            </div>
+        </div>
+    </template>
+
+    <!-- MODAL: Consolidar recepciones -->
+    <template x-if="modals.consolidar.open">
+        <div class="fixed inset-0 modal-overlay flex items-center justify-center z-50 p-4" @click.self="modals.consolidar.open=false">
+            <div class="card p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto fade-in">
+                <div class="flex items-center justify-between mb-5"><div><h3 class="text-sm font-bold text-slate-900">Crear despacho consolidado</h3><p class="text-xs text-slate-500 mt-1" x-text="recepciones.selected.length + ' recepciones seleccionadas'"></p></div><button @click="modals.consolidar.open=false" class="text-slate-400 hover:text-slate-600" title="Cerrar"><i data-lucide="x" class="w-5 h-5"></i></button></div>
+                <form @submit.prevent="saveConsolidation()" class="space-y-4">
+                    <div class="bg-slate-50 border border-slate-200 rounded-lg p-3 flex flex-wrap gap-2"><template x-for="r in selectedReceptionRows()" :key="r.id"><span class="font-mono text-[10px] text-slate-600 bg-white border border-slate-200 rounded px-2 py-1" x-text="r.tracking_externo"></span></template></div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div><label class="block text-xs font-medium text-slate-600 mb-1">Destinatario *</label><input type="text" x-model="modals.consolidar.destinatario_nombre" class="input-field" required></div>
+                        <div><label class="block text-xs font-medium text-slate-600 mb-1">Ciudad</label><input type="text" x-model="modals.consolidar.destinatario_ciudad" class="input-field"></div>
+                    </div>
+                    <div><label class="block text-xs font-medium text-slate-600 mb-1">Direccion o punto de retiro *</label><input type="text" x-model="modals.consolidar.destinatario_direccion" class="input-field" required></div>
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div><label class="block text-xs font-medium text-slate-600 mb-1">Categoria</label><select x-model="modals.consolidar.categoria_importacion" class="input-field"><option value="B">Categoria B</option><option value="C">Categoria C</option><option value="G">Categoria G</option></select></div>
+                        <div><label class="block text-xs font-medium text-slate-600 mb-1">Peso total (kg)</label><input type="number" min="0" step="0.01" x-model="modals.consolidar.peso_kg" class="input-field"></div>
+                        <div><label class="block text-xs font-medium text-slate-600 mb-1">Valor a cobrar *</label><input type="number" min="0" step="0.01" x-model="modals.consolidar.valor_flete" class="input-field" required></div>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-slate-600 mb-1">Entrega</label>
+                        <div class="grid grid-cols-2 border border-slate-200 rounded-lg overflow-hidden">
+                            <button type="button" @click="modals.consolidar.modalidad_entrega='retiro'" class="px-3 py-2 text-xs flex items-center justify-center gap-1.5" :class="modals.consolidar.modalidad_entrega==='retiro'?'bg-blue-600 text-white':'bg-white text-slate-600'"><i data-lucide="map-pin" class="w-3.5 h-3.5"></i> Retiro</button>
+                            <button type="button" @click="modals.consolidar.modalidad_entrega='domicilio'" class="px-3 py-2 text-xs flex items-center justify-center gap-1.5 border-l border-slate-200" :class="modals.consolidar.modalidad_entrega==='domicilio'?'bg-blue-600 text-white':'bg-white text-slate-600'"><i data-lucide="truck" class="w-3.5 h-3.5"></i> Domicilio</button>
+                        </div>
+                    </div>
+                    <div><label class="block text-xs font-medium text-slate-600 mb-1">Fecha prometida</label><input type="date" x-model="modals.consolidar.fecha_prometida" class="input-field"><p class="text-[10px] text-slate-400 mt-1">Vacio: se calculan 10 dias laborables.</p></div>
+                    <div><label class="block text-xs font-medium text-slate-600 mb-1">Notas internas</label><textarea x-model="modals.consolidar.notas_internas" class="input-field" rows="2"></textarea></div>
+                    <div class="flex justify-end gap-2 pt-3 border-t border-slate-200"><button type="button" @click="modals.consolidar.open=false" class="btn btn-secondary">Cancelar</button><button type="submit" class="btn btn-success" :disabled="modals.consolidar.saving" x-text="modals.consolidar.saving?'Creando...':'Generar guia'"></button></div>
+                </form>
+            </div>
+        </div>
+    </template>
+
+    <!-- MODAL: Pagos del despacho -->
+    <template x-if="modals.pago.open">
+        <div class="fixed inset-0 modal-overlay flex items-center justify-center z-50 p-4" @click.self="modals.pago.open=false">
+            <div class="card p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto fade-in">
+                <div class="flex items-center justify-between mb-5"><div><h3 class="text-sm font-bold text-slate-900" x-text="'Pagos de ' + (modals.pago.item?.tracking_code||'')"></h3><p class="text-xs text-slate-500 mt-1" x-text="(modals.pago.item?.clientes?.nombre_completo||'') + ' - Saldo ' + formatMoney(modals.pago.item?.saldo_pendiente)"></p></div><button @click="modals.pago.open=false" class="text-slate-400 hover:text-slate-600" title="Cerrar"><i data-lucide="x" class="w-5 h-5"></i></button></div>
+
+                <div class="space-y-2 mb-5" x-show="(modals.pago.item?.pagos_paquete||[]).length">
+                    <p class="kpi-label">Movimientos</p>
+                    <template x-for="payment in (modals.pago.item?.pagos_paquete||[])" :key="payment.id">
+                        <div class="border border-slate-200 rounded-lg px-3 py-2 flex flex-wrap items-center justify-between gap-2">
+                            <div><p class="text-sm font-semibold text-slate-800" x-text="formatMoney(payment.monto)"></p><p class="text-[10px] text-slate-400" x-text="payment.metodo + (payment.referencia?' - '+payment.referencia:'')"></p></div>
+                            <div class="flex items-center gap-2"><a x-show="payment.comprobante_url" :href="payment.comprobante_url" target="_blank" rel="noopener noreferrer" class="text-primary-600" title="Ver comprobante"><i data-lucide="external-link" class="w-4 h-4"></i></a><span class="badge" :class="payment.estado==='verificado'?'bg-emerald-100 text-emerald-700':payment.estado==='rechazado'?'bg-red-100 text-red-700':'bg-amber-100 text-amber-700'" x-text="payment.estado"></span><template x-if="isOwner && payment.estado==='pendiente'"><div class="flex gap-1"><button @click="reviewPayment(payment,'verificado')" class="p-1 text-emerald-600 hover:bg-emerald-50 rounded" title="Verificar"><i data-lucide="check" class="w-4 h-4"></i></button><button @click="reviewPayment(payment,'rechazado')" class="p-1 text-red-600 hover:bg-red-50 rounded" title="Rechazar"><i data-lucide="x" class="w-4 h-4"></i></button></div></template></div>
+                        </div>
+                    </template>
+                </div>
+
+                <form x-show="(modals.pago.item?.saldo_pendiente||0)>0" @submit.prevent="savePayment()" class="space-y-4 border-t border-slate-200 pt-4">
+                    <p class="kpi-label">Registrar pago</p>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3"><div><label class="block text-xs font-medium text-slate-600 mb-1">Monto *</label><input type="number" min="0.01" step="0.01" :max="modals.pago.item?.saldo_pendiente" x-model="modals.pago.monto" class="input-field" required></div><div><label class="block text-xs font-medium text-slate-600 mb-1">Metodo</label><select x-model="modals.pago.metodo" class="input-field"><option value="transferencia">Transferencia</option><option value="efectivo">Efectivo</option><option value="otro">Otro</option></select></div></div>
+                    <div><label class="block text-xs font-medium text-slate-600 mb-1">Referencia</label><input type="text" x-model="modals.pago.referencia" class="input-field"></div>
+                    <div><label class="block text-xs font-medium text-slate-600 mb-1">Enlace del comprobante</label><input type="url" x-model="modals.pago.comprobante_url" class="input-field" placeholder="https://..."></div>
+                    <div x-show="isOwner"><label class="block text-xs font-medium text-slate-600 mb-1">Revision</label><select x-model="modals.pago.estado" class="input-field"><option value="pendiente">Pendiente de revision</option><option value="verificado">Verificado</option></select></div>
+                    <p x-show="!isOwner" class="text-[10px] text-slate-400">El comprobante quedara pendiente de verificacion del dueño o supervisor.</p>
+                    <div class="flex justify-end gap-2"><button type="button" @click="modals.pago.open=false" class="btn btn-secondary">Cerrar</button><button type="submit" class="btn btn-primary" :disabled="modals.pago.saving" x-text="modals.pago.saving?'Guardando...':'Registrar pago'"></button></div>
+                </form>
+                <div x-show="(modals.pago.item?.saldo_pendiente||0)<=0" class="border-t border-slate-200 pt-4 flex items-center justify-between"><p class="text-sm font-medium text-emerald-600">Despacho pagado completamente</p><button @click="modals.pago.open=false" class="btn btn-secondary">Cerrar</button></div>
+            </div>
+        </div>
+    </template>
+
     <!-- MODAL: Detalle de envio (Operaciones) -->
     <template x-if="modals.detalle.open">
         <div class="fixed inset-0 modal-overlay flex items-center justify-center z-50 p-4" @click.self="modals.detalle.open = false">
@@ -880,9 +1144,10 @@
                 </form>
             </div>
         </div>
-    </modal>
+    </template>
 </div>
 
+<script>
 function renderServices() {
     const grid = document.getElementById('servicesGrid');
     if (!grid) return;

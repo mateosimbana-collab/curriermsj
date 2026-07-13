@@ -1,51 +1,93 @@
 # -*- coding: utf-8 -*-
-"""Migrate old envios to new paquetes/clientes/tracking_events"""
+"""Migrate preserved historical tables into the unified schema."""
+
+import hashlib
 import io
 import os
 import re
 import sys
 from datetime import datetime, timezone
+from typing import Any
 
 import requests
+from dotenv import load_dotenv
+
 
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+load_dotenv()
+load_dotenv("bot-mensajeria/.env")
 
-SUPABASE_URL = os.getenv("SUPABASE_URL", "")
-SUPABASE_KEY = os.getenv("SUPABASE_KEY", "")
+SUPABASE_URL = os.getenv("SUPABASE_URL", "").rstrip("/")
+SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_KEY") or os.getenv("SUPABASE_KEY", "")
+CHECK_ONLY = "--check" in sys.argv
+
 if not SUPABASE_URL or not SUPABASE_KEY:
-    print("ERROR: Set SUPABASE_URL and SUPABASE_KEY env vars")
+    print("ERROR: configura SUPABASE_URL y SUPABASE_SERVICE_KEY")
     sys.exit(1)
-HEADERS = {"apikey": SUPABASE_KEY, "Authorization": f"Bearer {SUPABASE_KEY}", "Content-Type": "application/json", "Prefer": "return=representation"}
 
-def supabase_get(table, params=None):
-    r = requests.get(f"{SUPABASE_URL}/rest/v1/{table}", headers=HEADERS, params=params, timeout=30)
-    r.raise_for_status()
-    return r.json()
+HEADERS = {
+    "apikey": SUPABASE_KEY,
+    "Authorization": f"Bearer {SUPABASE_KEY}",
+    "Content-Type": "application/json",
+    "Prefer": "return=representation",
+}
 
-def supabase_post(table, data):
-    r = requests.post(f"{SUPABASE_URL}/rest/v1/{table}", headers=HEADERS, json=data, timeout=30)
-    if r.status_code == 201 or r.status_code == 200:
-        return r.json() if r.text else [data]
-    raise Exception(f"Error inserting into {table}: {r.status_code} {r.text}")
 
-def parse_peso(peso_label):
+def supabase_get(table: str, params: dict[str, Any] | None = None, *, missing_ok: bool = False):
+    response = requests.get(
+        f"{SUPABASE_URL}/rest/v1/{table}",
+        headers=HEADERS,
+        params=params,
+        timeout=30,
+    )
+    if missing_ok and response.status_code == 404:
+        return []
+    response.raise_for_status()
+    return response.json()
+
+
+def supabase_post(table: str, data: dict[str, Any]):
+    response = requests.post(
+        f"{SUPABASE_URL}/rest/v1/{table}",
+        headers=HEADERS,
+        json=data,
+        timeout=30,
+    )
+    if response.status_code in (200, 201):
+        return response.json() if response.text else [data]
+    raise RuntimeError(f"Error inserting into {table}: {response.status_code} {response.text}")
+
+
+def table_exists(table: str, field: str = "id") -> bool:
+    response = requests.get(
+        f"{SUPABASE_URL}/rest/v1/{table}",
+        headers=HEADERS,
+        params={"select": field, "limit": 1},
+        timeout=15,
+    )
+    return response.status_code == 200
+
+
+def parse_peso(peso_label: Any) -> float | None:
     if not peso_label:
         return None
-    peso_clean = peso_label.lower().strip()
-    if "menos de 1" in peso_clean:
+    cleaned = str(peso_label).lower().strip()
+    if "menos de 1" in cleaned:
         return 0.5
-    if "1 - 5" in peso_clean:
+    if "1 - 5" in cleaned:
         return 3.0
-    if "más de 5" in peso_clean or "mas de 5" in peso_clean:
+    if "más de 5" in cleaned or "mas de 5" in cleaned:
         return 6.0
     try:
-        return float(re.sub(r"[^\d.]", "", peso_clean))
+        return float(re.sub(r"[^\d.]", "", cleaned))
     except ValueError:
         return None
 
-def map_estado(old_estado):
+
+def map_estado(old_estado: Any) -> str:
     mapping = {
         "pendiente": "recibido_en_usa",
+        "recibido": "recibido_en_usa",
         "en tránsito": "en_transito",
         "en transito": "en_transito",
         "en aduana": "en_aduana",
@@ -54,104 +96,207 @@ def map_estado(old_estado):
         "devuelto": "devuelto",
         "retenido": "retenido",
     }
-    return mapping.get(old_estado.lower().strip(), "recibido_en_usa")
+    return mapping.get(str(old_estado or "").lower().strip(), "recibido_en_usa")
 
-# 1. Get old envios
-print("Reading old envios...")
-envios = supabase_get("envios", params={"order": "id.asc"})
-print(f"Found {len(envios)} envios")
 
-# 2. Create clientes from unique phone_numbers
-phone_to_cliente = {}
-for e in envios:
-    phone = e.get("phone_number", "")
-    if phone and phone not in phone_to_cliente:
-        # Check if client already exists by phone
-        existing = supabase_get("clientes", params={"telefono": f"eq.{phone}", "select": "id"})
-        if existing:
-            phone_to_cliente[phone] = existing[0]["id"]
-            print(f"  Client already exists for {phone}: id={existing[0]['id']}")
-        else:
-            cli = {
-                "nombre_completo": e.get("remitente", "Migrado"),
-                "cedula": f"MIG-{phone[-6:]}",
-                "telefono": phone,
-                "email": "",
-                "ciudad": "Guayaquil",
-                "direccion": e.get("direccion_origen", ""),
-                "tipo_cliente": "regular",
-                "notas": f"Migrado automaticamente. Remitente original: {e.get('remitente', '')}",
-            }
-            try:
-                res = supabase_post("clientes", cli)
-                new_id = res[0]["id"]
-                phone_to_cliente[phone] = new_id
-                print(f"  Created client {cli['nombre_completo']} ({phone}) → id={new_id}")
-            except Exception as ex:
-                print(f"  ERROR creating client for {phone}: {ex}")
+def synthetic_cedula(phone: str) -> str:
+    digest = hashlib.sha256(phone.encode("utf-8")).hexdigest()[:16].upper()
+    return f"MIG-{digest}"
 
-# 3. Migrate envios to paquetes
-for e in envios:
-    tracking = e.get("tracking_code", "")
-    phone = e.get("phone_number", "")
-    cliente_id = phone_to_cliente.get(phone)
-    
-    # Check if paquete already exists with this tracking code
-    existing_paq = supabase_get("paquetes", params={"tracking_code": f"eq.{tracking}", "select": "id"})
-    if existing_paq:
-        print(f"  Paquete {tracking} already exists, skipping")
-        continue
-    
-    paquete = {
-        "tracking_code": tracking,
-        "cliente_id": cliente_id,
-        "remitente_nombre": e.get("remitente", ""),
-        "remitente_pais": "Estados Unidos",
-        "destinatario_nombre": e.get("destinatario", ""),
-        "destinatario_direccion": e.get("direccion_destino", ""),
-        "contenido": e.get("tipo_paquete", ""),
-        "peso_kg": parse_peso(e.get("peso", "")),
-        "valor_declarado": float(e.get("valor_cotizado") or 0),
-        "estado_actual": map_estado(e.get("estado", "pendiente")),
-        "etiqueta_actual": None,
-        "created_at": e.get("creado_en", datetime.now(timezone.utc).isoformat()),
-        "updated_at": e.get("creado_en", datetime.now(timezone.utc).isoformat()),
+
+def masked_phone(phone: str) -> str:
+    return f"***{phone[-4:]}" if len(phone) >= 4 else "***"
+
+
+def ensure_client(
+    phone: str,
+    *,
+    name: str = "Cliente migrado",
+    city: str = "",
+    alternate_phone: str = "",
+    address: str = "",
+    created_at: str = "",
+) -> str:
+    existing = supabase_get("clientes", {"telefono": f"eq.{phone}", "select": "id"})
+    if existing:
+        return existing[0]["id"]
+
+    payload = {
+        "cedula": synthetic_cedula(phone),
+        "nombre_completo": name.strip() or "Cliente migrado",
+        "telefono": phone,
+        "telefono_alternativo": alternate_phone or None,
+        "ciudad": city or "Guayaquil",
+        "direccion": address or None,
+        "tipo_cliente": "regular",
+        "notas": "Migrado automaticamente desde el esquema historico",
+        "created_at": created_at or datetime.now(timezone.utc).isoformat(),
     }
-    
+    payload = {key: value for key, value in payload.items() if value is not None}
+    result = supabase_post("clientes", payload)
+    return result[0]["id"]
+
+
+required_targets = ("clientes", "paquetes", "tracking_events", "reportes", "faq")
+missing_targets = [table for table in required_targets if not table_exists(table)]
+if missing_targets:
+    print("ERROR: faltan tablas unificadas: " + ", ".join(missing_targets))
+    print("Ejecuta primero el preflight historico y las migraciones 001 a 005.")
+    sys.exit(1)
+
+legacy_clients = supabase_get("clientes_legacy", {"order": "registrado_en.asc"}, missing_ok=True)
+legacy_reports = supabase_get("reportes_legacy", {"order": "id.asc"}, missing_ok=True)
+legacy_faq = supabase_get("faq_legacy", {"order": "id.asc"}, missing_ok=True)
+envios = supabase_get("envios", {"order": "id.asc"}, missing_ok=True)
+
+print("Preflight historico")
+print(f"  clientes_legacy: {len(legacy_clients)}")
+print(f"  envios: {len(envios)}")
+print(f"  reportes_legacy: {len(legacy_reports)}")
+print(f"  faq_legacy: {len(legacy_faq)}")
+if CHECK_ONLY:
+    print("CHECK OK: no se modificaron datos")
+    sys.exit(0)
+
+phone_to_client: dict[str, str] = {}
+errors = 0
+
+print("\nMigrando clientes...")
+for old in legacy_clients:
+    phone = str(old.get("phone_number") or "").strip()
+    if not phone:
+        print("  OMITIDO: cliente historico sin telefono")
+        errors += 1
+        continue
+    name = " ".join(
+        part.strip()
+        for part in (str(old.get("nombre") or ""), str(old.get("apellido") or ""))
+        if part.strip()
+    )
     try:
-        res = supabase_post("paquetes", paquete)
-        paq_id = res[0]["id"]
-        print(f"  Created paquete {tracking} -> id={paq_id}")
-        
-        # 4. Create tracking_event
-        event = {
-            "paquete_id": paq_id,
-            "etiqueta": paquete["estado_actual"],
-            "descripcion": f"Migrado desde sistema anterior. Estado original: '{e.get('estado', 'pendiente')}'",
-            "ubicacion": "Migracion",
-            "created_at": e.get("creado_en", datetime.now(timezone.utc).isoformat()),
-        }
-        supabase_post("tracking_events", event)
-        print(f"  Created tracking_event for {tracking}")
-    except Exception as ex:
-        print(f"  ERROR migrating {tracking}: {ex}")
+        phone_to_client[phone] = ensure_client(
+            phone,
+            name=name,
+            city=str(old.get("ciudad") or ""),
+            alternate_phone=str(old.get("telefono_contacto") or ""),
+            created_at=str(old.get("registrado_en") or ""),
+        )
+        print(f"  OK {masked_phone(phone)}")
+    except Exception as exc:
+        errors += 1
+        print(f"  ERROR cliente {masked_phone(phone)}: {exc}")
 
-# 5. Second pass: create missing tracking_events for existing paquetes
-print("\nChecking for missing tracking_events...")
-paquetes = supabase_get("paquetes", params={"select": "id,tracking_code,estado_actual,created_at"})
-for p in paquetes:
-    existing = supabase_get("tracking_events", params={"paquete_id": f"eq.{p['id']}", "select": "id"})
-    if not existing:
-        event = {
-            "paquete_id": p["id"],
-            "etiqueta": p["estado_actual"],
-            "descripcion": "Migrado desde sistema anterior",
-            "ubicacion": "Migracion",
-            "created_at": p["created_at"],
-        }
-        supabase_post("tracking_events", event)
-        print(f"  Created tracking_event for {p['tracking_code']}")
-    else:
-        print(f"  {p['tracking_code']} already has {len(existing)} event(s)")
+print("\nMigrando envios...")
+tracking_to_package: dict[str, str] = {}
+for old in envios:
+    legacy_id = str(old.get("id") or "")
+    tracking = str(old.get("tracking_code") or f"LEG-{legacy_id}").strip().upper()
+    phone = str(old.get("phone_number") or old.get("telefono_remitente") or "").strip()
+    if not phone:
+        phone = f"legacy-envio-{legacy_id}"
+    try:
+        client_id = phone_to_client.get(phone) or ensure_client(
+            phone,
+            name=str(old.get("remitente") or "Cliente migrado"),
+            alternate_phone=str(old.get("telefono_remitente") or ""),
+            address=str(old.get("direccion_origen") or ""),
+            created_at=str(old.get("creado_en") or ""),
+        )
+        phone_to_client[phone] = client_id
+        existing = supabase_get("paquetes", {"tracking_code": f"eq.{tracking}", "select": "id"})
+        if existing:
+            package_id = existing[0]["id"]
+        else:
+            package = {
+                "tracking_code": tracking,
+                "cliente_id": client_id,
+                "remitente_nombre": old.get("remitente") or "Cliente migrado",
+                "remitente_telefono": old.get("telefono_remitente") or phone,
+                "remitente_pais": "Estados Unidos",
+                "destinatario_nombre": old.get("destinatario") or "Por confirmar",
+                "destinatario_telefono": old.get("telefono_destinatario") or None,
+                "destinatario_direccion": old.get("direccion_destino") or "Por confirmar",
+                "contenido": old.get("tipo_paquete") or None,
+                "peso_kg": parse_peso(old.get("peso")),
+                "valor_flete": float(old.get("valor_cotizado") or 0),
+                "estado_actual": map_estado(old.get("estado")),
+                "created_at": old.get("creado_en") or datetime.now(timezone.utc).isoformat(),
+                "updated_at": old.get("creado_en") or datetime.now(timezone.utc).isoformat(),
+            }
+            package = {key: value for key, value in package.items() if value is not None}
+            package_id = supabase_post("paquetes", package)[0]["id"]
+        tracking_to_package[tracking] = package_id
 
-print("\nMigration complete!")
+        events = supabase_get("tracking_events", {"paquete_id": f"eq.{package_id}", "select": "id"})
+        if not events:
+            supabase_post(
+                "tracking_events",
+                {
+                    "paquete_id": package_id,
+                    "etiqueta": map_estado(old.get("estado")),
+                    "descripcion": f"Migrado desde envio historico #{legacy_id}",
+                    "ubicacion": "Migracion",
+                    "created_at": old.get("creado_en") or datetime.now(timezone.utc).isoformat(),
+                },
+            )
+        print(f"  OK {tracking}")
+    except Exception as exc:
+        errors += 1
+        print(f"  ERROR envio {tracking}: {exc}")
+
+print("\nMigrando reportes...")
+valid_report_states = {"abierto", "en_proceso", "resuelto", "cerrado"}
+for old in legacy_reports:
+    marker = f"[LEGACY-REPORT-{old.get('id')}]"
+    existing = supabase_get("reportes", {"descripcion": f"ilike.*{marker}*", "select": "id"})
+    if existing:
+        continue
+    phone = str(old.get("phone_number") or "").strip() or "sin-telefono"
+    tracking = str(old.get("tracking_code") or "").strip().upper()
+    state = str(old.get("estado") or "abierto").lower()
+    try:
+        supabase_post(
+            "reportes",
+            {
+                "cliente_id": phone_to_client.get(phone),
+                "paquete_id": tracking_to_package.get(tracking),
+                "telefono_contacto": phone,
+                "descripcion": f"{marker} {old.get('descripcion') or ''}".strip(),
+                "categoria": old.get("categoria"),
+                "estado": state if state in valid_report_states else "abierto",
+                "created_at": old.get("creado_en") or datetime.now(timezone.utc).isoformat(),
+            },
+        )
+        print(f"  OK reporte {old.get('id')}")
+    except Exception as exc:
+        errors += 1
+        print(f"  ERROR reporte {old.get('id')}: {exc}")
+
+print("\nMigrando FAQ...")
+for old in legacy_faq:
+    question = str(old.get("pregunta") or "").strip()
+    if not question:
+        continue
+    existing = supabase_get("faq", {"pregunta": f"eq.{question}", "select": "id"})
+    if existing:
+        continue
+    try:
+        supabase_post(
+            "faq",
+            {
+                "pregunta": question,
+                "respuesta": old.get("respuesta") or "",
+                "categoria": old.get("categoria") or "general",
+                "activo": True,
+            },
+        )
+        print(f"  OK {question}")
+    except Exception as exc:
+        errors += 1
+        print(f"  ERROR FAQ {question}: {exc}")
+
+if errors:
+    print(f"\nMigracion parcial: {errors} registro(s) requieren revision. Puedes corregirlos y repetir el script.")
+    sys.exit(1)
+
+print("\nMigracion completa. Las tablas *_legacy y envios se conservaron como respaldo.")

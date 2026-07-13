@@ -13,14 +13,16 @@ El repositorio conserva dos superficies completas. `run.py` inicia la plataforma
 ## Funcionalidades
 
 - Login administrativo con JWT y permisos por rol.
-- Dashboard con clientes, paquetes, estados, prospectos y sesiones activas.
+- Dashboard por rol: indicadores financieros para dueno/supervisor y cola operativa para agentes/soporte.
 - Registro, edicion, busqueda y eliminacion logica de clientes.
 - Registro de paquetes y generacion automatica de codigos `CUR-xxxxx`.
+- Recepcion en bodega USA, envio de fotos, decision del cliente y consolidacion de paquetes.
+- Registro de cobros, comprobantes, abonos, saldos y verificacion separada de pagos.
 - Historial de tracking y cambio de estados.
 - Consulta publica de tracking sin exponer cedulas, telefonos ni notas internas.
 - Exportacion autenticada de reportes CSV.
 - Registro de auditoria para clientes y paquetes.
-- Bot de WhatsApp con onboarding, tracking, cotizacion, reportes y registro de envios.
+- Bot de WhatsApp con onboarding, tracking, solicitud de cotizacion manual, reportes y registro de envios.
 - Webhook validado mediante firma HMAC de Meta.
 - Migracion de datos desde las tablas historicas.
 - Indice local opcional con CodeGraph para navegar el codigo.
@@ -486,6 +488,7 @@ Ejecuta estos archivos en orden desde Supabase SQL Editor:
 2. `database/migrations/002_rpc_paquetes_por_estado.sql`
 3. `database/migrations/003_rpc_dashboard_stats.sql`
 4. `database/migrations/004_security_and_integrity.sql`
+5. `database/migrations/005_operational_workflow.sql`
 
 Con `psql` tambien puedes usar:
 
@@ -494,11 +497,29 @@ psql "$env:DATABASE_URL" -v ON_ERROR_STOP=1 -f database/migrations/001_initial_s
 psql "$env:DATABASE_URL" -v ON_ERROR_STOP=1 -f database/migrations/002_rpc_paquetes_por_estado.sql
 psql "$env:DATABASE_URL" -v ON_ERROR_STOP=1 -f database/migrations/003_rpc_dashboard_stats.sql
 psql "$env:DATABASE_URL" -v ON_ERROR_STOP=1 -f database/migrations/004_security_and_integrity.sql
+psql "$env:DATABASE_URL" -v ON_ERROR_STOP=1 -f database/migrations/005_operational_workflow.sql
 ```
 
 ### Base existente
 
-Haz un respaldo antes de migrar. Aplica `002`, `003` y `004` si todavia no existen en la base. La migracion `004` agrega integridad para clientes activos, tablas `reportes` y `faq`, y RLS a todas las tablas auxiliares.
+Haz un respaldo recuperable antes de migrar. Si la base todavia contiene las tablas historicas `envios`, `estado_usuario` y `clientes.phone_number`, no ejecutes `001` directamente: los nombres `clientes`, `reportes` y `faq` chocan con el esquema unificado.
+
+Sobre una copia de la base, ejecuta este orden:
+
+1. `database/legacy_upgrade/000_preserve_historical_tables.sql`
+2. `database/migrations/001_initial_schema.sql`
+3. `database/migrations/002_rpc_paquetes_por_estado.sql`
+4. `database/migrations/003_rpc_dashboard_stats.sql`
+5. `database/migrations/004_security_and_integrity.sql`
+6. `database/migrations/005_operational_workflow.sql`
+7. `database/migrate_old_data.py --check`
+8. `database/migrate_old_data.py`
+
+El preflight renombra de forma no destructiva las tablas que chocan a `clientes_legacy`, `reportes_legacy` y `faq_legacy`. `envios` permanece intacta durante la conversion. Si la base ya usa `usuarios`, clientes UUID y `paquetes`, omite el preflight y aplica solamente las migraciones que falten, siempre en orden.
+
+La migracion `004` agrega integridad para clientes activos, tablas `reportes` y `faq`, y RLS a las tablas auxiliares. La `005` agrega la operacion de bodega USA, consolidacion y cobros.
+
+Mientras se mantenga `/dashboard`, aplica tambien `database/legacy_upgrade/001_finance_dashboard.sql`. Es idempotente y habilita el registro de movimientos, planilla y margenes que alimentan el resumen financiero del dueno.
 
 Los indices unicos activos fallaran de forma segura si ya existen cedulas o telefonos duplicados. Revisa antes:
 
@@ -526,7 +547,8 @@ El esquema mantiene entidades separadas para evitar grupos repetidos y dependenc
 |---|---|
 | Acceso | `usuarios` |
 | Clientes | `clientes`, `grupos_clientes`, `mayoristas`, `prospectos` |
-| Operacion | `paquetes`, `tracking_events`, `imagenes_paquete`, `etiquetas_estado` |
+| Operacion | `recepciones_usa`, `paquetes`, `tracking_events`, `imagenes_paquete`, `etiquetas_estado` |
+| Cobros | `pagos_paquete` |
 | Comunicacion | `sesiones_whatsapp`, `notificaciones`, `faq`, `reportes` |
 | Control | `configuracion`, `audit_log`, `reportes_generados` |
 
@@ -552,10 +574,11 @@ La contrasena se solicita dos veces sin mostrarse y debe tener al menos 12 carac
 Con respaldo verificado y las variables de Supabase configuradas:
 
 ```powershell
+.\.venv\Scripts\python.exe database\migrate_old_data.py --check
 .\.venv\Scripts\python.exe database\migrate_old_data.py
 ```
 
-El script convierte `envios` en `clientes`, `paquetes` y `tracking_events`. Es idempotente por codigo de tracking, pero debe probarse primero sobre una copia de la base.
+`--check` valida las tablas de origen y destino sin escribir. El script convierte clientes, `envios`, reportes y FAQ historicos al modelo unificado. Es idempotente por telefono, tracking y claves funcionales, conserva las tablas de origen y debe probarse primero sobre una copia de la base.
 
 ### Datos de prueba y mantenimiento legado
 
@@ -633,6 +656,9 @@ Los errores usan:
 | Dashboard | `GET /api/dashboard` |
 | Clientes | `GET/POST /api/clientes`, `GET/PUT/DELETE /api/clientes/<id>` |
 | Paquetes | `GET/POST /api/paquetes`, `GET /api/paquetes/<id>`, `PUT /api/paquetes/<id>/estado` |
+| Recepciones USA | `GET/POST /api/recepciones`, `PUT /api/recepciones/<id>`, `POST /api/recepciones/consolidar` |
+| Cobros | `GET /api/cobros`, `POST /api/pagos`, `PUT /api/pagos/<id>/estado` |
+| Resumen por rol | `GET /api/operaciones/resumen` |
 | Operacion | `GET /api/etiquetas`, `/api/prospectos`, `/api/sesiones`, `/api/notificaciones` |
 | Configuracion | `GET /api/config`, `GET/PUT /api/config/<clave>` |
 | Usuarios | `GET/POST /api/usuarios` |
@@ -659,6 +685,9 @@ Al ejecutar `bot-mensajeria/app.py` se mantienen las interfaces y APIs originale
 | `GET` | `/api/system-stats` | Clientes, estados conversacionales y reportes |
 | `GET` | `/api/earnings` | Ingresos acumulados por periodo |
 | `GET` | `/api/finance-summary` | Flujo de caja, gastos, planilla y margenes |
+| `POST` | `/api/finance/movimientos` | Registra un ingreso o egreso fijo/variable |
+| `POST` | `/api/finance/planilla` | Registra sueldo, descuentos, fecha y estado de pago |
+| `POST` | `/api/finance/margenes` | Registra venta y costo para calcular margen por producto |
 | `GET` | `/api/logs` | Ultimas lineas del registro del bot |
 | `GET` | `/api/test-results` | Resultado generado por `run_tests.bat` |
 
@@ -670,6 +699,10 @@ Al ejecutar `bot-mensajeria/app.py` se mantienen las interfaces y APIs originale
 |---|:---:|:---:|:---:|:---:|
 | Ver dashboard y listados | Si | Si | Si | Si |
 | Crear o editar clientes y paquetes | Si | Si | Si | No |
+| Registrar recepciones y consolidar | Si | Si | Si | No |
+| Registrar cobros | Si | Si | Si | No |
+| Verificar o rechazar cobros | Si | Si | No | No |
+| Ver indicadores monetarios | Si | Si | No | No |
 | Cambiar estado de paquetes | Si | Si | Si | No |
 | Eliminar clientes | Si | Si | No | No |
 | Exportar reportes y ver auditoria | Si | Si | No | No |
@@ -719,7 +752,7 @@ Ninguna interfaz fue reemplazada o eliminada. El repositorio mantiene tres opcio
 
 El panel unificado usa AlpineJS local, Tailwind CSS precompilado local, Chart.js `4.5.1` y Lucide `1.24.0`. Los datos de la API se muestran con `x-text`, no se interpolan como HTML, y los reportes se descargan mediante `fetch` autenticado.
 
-Los paneles HTML historicos conservan sus tablas y tarjetas, pero todo contenido procedente de Supabase, logs o resultados de pruebas pasa por `dashboard/public/dashboard-assets/safe-html.js`. El modulo escapa interpolaciones y permite solo las etiquetas y atributos que usa la interfaz.
+El panel del dueno incluye flujo de caja diario y mensual, utilidad neta, gastos fijos/variables, planilla, margenes por producto/categoria y punto de equilibrio. Los formularios de alta escriben exclusivamente mediante endpoints HTTP Basic con validacion de campos. Todo contenido procedente de Supabase, logs o resultados de pruebas pasa por `dashboard/public/dashboard-assets/safe-html.js`; el modulo escapa interpolaciones y permite solo las etiquetas y atributos que usa la interfaz.
 
 Para ejecutar el dashboard React:
 
@@ -754,7 +787,7 @@ El dashboard React conserva su cliente Supabase propio en `dashboard/src/lib/sup
 - Registro inicial del cliente.
 - Menu principal.
 - Consulta de tracking.
-- Cotizacion por tipo, peso y servicio.
+- Solicitud de cotizacion con origen fijo en bodega USA y revision humana de categoria, ciudad, modalidad y descuentos.
 - Registro de un envio.
 - Consulta de envios propios.
 - Creacion de un reporte de soporte.
@@ -829,15 +862,15 @@ La estrategia fue usar mayoritariamente la interfaz React nueva, por ser la supe
 | Webhook | Verify token sin valor predeterminado y firma HMAC SHA-256 de Meta obligatoria | `backend/security.py`, `backend/interfaces/webhook.py` |
 | Modo legado | HTTP Basic configurable para dashboards, finanzas, logs, envios y resultados de pruebas | `bot-mensajeria/web/routes.py` |
 | Seguridad compartida | Comparacion constante de secretos, HMAC y decorador de autenticacion reutilizados por ambos servidores | `backend/security.py` |
-| Bot | Correccion de mapeos entre telefono, cliente, sesion, paquete, FAQ y reportes | `bot-mensajeria/bot/`, `bot-mensajeria/services/supabase_repository.py` |
+| Bot | Cotizacion manual, correccion de estados y adaptacion automatica al esquema historico o unificado | `bot-mensajeria/bot/`, `bot-mensajeria/services/supabase_repository.py` |
 | WhatsApp | Version de Graph API definida por entorno y validacion previa de credenciales | `bot-mensajeria/config.py`, `bot-mensajeria/services/whatsapp_client.py` |
-| Panel unificado | JWT en `sessionStorage`, reportes autenticados, campos corregidos y dependencias CDN fijadas | `frontend/index.html` |
+| Panel unificado | Vistas por rol, recepciones USA, consolidacion, cobros y resumen financiero protegido | `frontend/index.html` |
 | Paneles HTML | Proteccion XSS, recursos compartidos autenticados, CDNs fijadas y retiro de IDs operativos escritos en HTML | `dashboard/index.html`, `dashboard/owner.html`, `dashboard/support.html` |
 | Dashboard React | Entrada real `react.html`, rutas hash, proxy local, credenciales incluidas y carga diferida de vistas | `dashboard/react.html`, `dashboard/vite.config.js`, `dashboard/src/` |
 | Sanitizacion | Escape de interpolaciones y allowlist DOM para datos, logs, reportes y resultados de pruebas | `dashboard/public/dashboard-assets/safe-html.js` |
-| Base de datos | Esquema corregido, RLS, RPC restringidas, indices, integridad y migracion adicional | `database/migrations/001_initial_schema.sql` a `004_security_and_integrity.sql` |
+| Base de datos | Esquema corregido, RLS, recepciones USA, consolidacion, cobros e integridad | `database/migrations/001_initial_schema.sql` a `005_operational_workflow.sql` |
 | Administrador inicial | Creacion segura del primer usuario sin endpoint publico ni contrasena en argumentos | `database/create_admin.py` |
-| Migracion historica | Conversion idempotente desde `envios` con campos compatibles con el modelo unificado | `database/migrate_old_data.py` |
+| Migracion historica | Preflight no destructivo y conversion idempotente de clientes, envios, reportes y FAQ | `database/legacy_upgrade/`, `database/migrate_old_data.py` |
 | Datos de prueba | Restauracion del cargador, borrador controlado y SQL historico | `cargar_datos_prueba.bat`, `borrar_datos.bat`, `bot-mensajeria/supabase_schema.sql` |
 | Codigo zombie | Eliminacion exclusiva de dos modulos duplicados y sin imports activos | `backend/config/settings.py`, `backend/domain/entities.py` |
 | Calidad | Pruebas ampliadas para autenticacion, roles, firma Meta, CORS, repositorios y assets | `backend/tests/`, `bot-mensajeria/tests/` |
@@ -873,7 +906,9 @@ Una actualizacion futura debe preservar estos contratos salvo que exista una mig
 | Bot | `CourierBot` depende del contrato del adaptador en `bot-mensajeria/services/supabase_repository.py` |
 | Sesiones | `sesiones_whatsapp` debe conservar telefono, paso, datos temporales y asociacion opcional con cliente |
 | Paquetes | Todo paquete necesita `cliente_id` y un tracking unico; el historial se registra en `tracking_events` |
-| Esquema nuevo | Las migraciones se aplican en orden `001`, `002`, `003`, `004` y no se reescribe una migracion ya desplegada sin plan |
+| Recepciones | El estado interno de bodega vive en `recepciones_usa`; el tracking publico continua en `tracking_events` |
+| Cobros | Un pago registrado no cuenta como cobrado hasta quedar `verificado`; agentes no verifican sus propios registros |
+| Esquema nuevo | Las migraciones se aplican en orden `001`, `002`, `003`, `004`, `005` y no se reescribe una migracion ya desplegada sin plan |
 | Esquema historico | `bot-mensajeria/supabase_schema.sql` se conserva para instalaciones y datos de prueba antiguos |
 | Scripts destructivos | `borrar_datos.bat` requiere respaldo y confirmacion; nunca se ejecuta automaticamente |
 | HTML dinamico | Datos de Supabase, WhatsApp, logs y pruebas pasan por `safe-html.js` o APIs DOM seguras |
@@ -1026,9 +1061,17 @@ Verifica que `META_APP_SECRET` sea el App Secret real de Meta y que el proxy pre
 
 Comprueba que `WEBHOOK_VERIFY_TOKEN` coincida exactamente con el configurado en Meta y que `GET /webhook` sea accesible por HTTPS.
 
+### WhatsApp responde `131030 Recipient phone number not in allowed list`
+
+La aplicacion de Meta esta usando un entorno de prueba y ese destinatario no esta autorizado. Agrega el numero a la lista de destinatarios permitidos del producto WhatsApp en Meta y vuelve a enviar. El backend no puede omitir esa restriccion de Meta.
+
 ### La migracion `004` falla al crear indices
 
 Busca cedulas o telefonos activos duplicados con las consultas de preflight, consolida los registros y vuelve a ejecutar la migracion.
+
+### La API indica que la operacion no esta disponible
+
+Aplica `database/migrations/005_operational_workflow.sql`. Hasta entonces el resumen responde sin inventar datos y el adaptador del bot sigue usando las tablas historicas disponibles.
 
 ### El panel vuelve al login
 
@@ -1071,6 +1114,9 @@ codegraph status
 | Esquema inicial | `database/migrations/001_initial_schema.sql` |
 | Esquema historico | `bot-mensajeria/supabase_schema.sql` |
 | Endurecimiento de una base existente | `database/migrations/004_security_and_integrity.sql` |
+| Recepciones, consolidacion y cobros | `database/migrations/005_operational_workflow.sql` |
+| Preflight de una base historica | `database/legacy_upgrade/000_preserve_historical_tables.sql` |
+| Finanzas del dashboard historico | `database/legacy_upgrade/001_finance_dashboard.sql` |
 | Administrador inicial | `database/create_admin.py` |
 
 ## Operacion responsable

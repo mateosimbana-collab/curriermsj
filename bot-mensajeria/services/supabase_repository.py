@@ -8,10 +8,9 @@ import json
 import logging
 import sys
 import os
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 from urllib.parse import quote
-from zoneinfo import ZoneInfo
 
 import httpx
 
@@ -27,10 +26,7 @@ from backend.infrastructure.supabase_repository import SupabaseRepository as Bac
 
 logger = logging.getLogger(__name__)
 
-try:
-    BUSINESS_TZ = ZoneInfo("America/Guayaquil")
-except Exception:
-    BUSINESS_TZ = timezone.utc
+BUSINESS_TZ = timezone(timedelta(hours=-5))
 
 
 class SupabaseRepository(BackendRepo):
@@ -49,6 +45,17 @@ class SupabaseRepository(BackendRepo):
         self.table_faq = config.SUPABASE_TABLE_FAQ
         self.table_reportes = config.SUPABASE_TABLE_REPORTES
         self.table_clientes = config.SUPABASE_TABLE_CLIENTES
+        self._unified_schema: Optional[bool] = None
+
+    def uses_unified_schema(self) -> bool:
+        if self._unified_schema is None:
+            try:
+                self.client.table("paquetes").select("id").limit(1).execute()
+                self._unified_schema = True
+            except Exception:
+                self._unified_schema = False
+                logger.info("Esquema historico detectado; usando tablas envios y estado_usuario")
+        return self._unified_schema
 
     @property
     def headers(self) -> dict[str, str]:
@@ -62,11 +69,37 @@ class SupabaseRepository(BackendRepo):
     # --- Bot-specific methods using old tables ---
 
     def get_client(self, phone_number: str) -> Optional[dict[str, Any]]:
-        """Lookup client by phone using new schema."""
-        return self.buscar_cliente_por_telefono(phone_number)
+        if self.uses_unified_schema():
+            return self.buscar_cliente_por_telefono(phone_number)
+        phone = quote(phone_number, safe="")
+        rows = self._request(
+            "GET",
+            f"{self._table_url(self.table_clientes)}?phone_number=eq.{phone}&limit=1",
+        )
+        return rows[0] if rows else None
 
     def save_client(self, phone_number: str, nombre: str, apellido: str = "", ciudad: str = "", telefono_contacto: str = "") -> dict[str, Any]:
-        """Save client using new schema."""
+        if not self.uses_unified_schema():
+            payload = {
+                "phone_number": phone_number,
+                "nombre": nombre,
+                "apellido": apellido,
+                "ciudad": ciudad,
+                "telefono_contacto": telefono_contacto or phone_number,
+                "registrado_en": datetime.now(timezone.utc).isoformat(),
+            }
+            existing = self.get_client(phone_number)
+            if existing:
+                rows = self._request(
+                    "PATCH",
+                    f"{self._table_url(self.table_clientes)}?phone_number=eq.{quote(phone_number, safe='')}",
+                    json=payload,
+                )
+            else:
+                rows = self._request("POST", self._table_url(self.table_clientes), json=payload)
+            item = rows[0] if isinstance(rows, list) and rows else rows
+            return item or payload
+
         data = {
             "cedula": f"WA-{phone_number}",
             "telefono": phone_number,
@@ -87,10 +120,30 @@ class SupabaseRepository(BackendRepo):
         return client
 
     def get_user_state(self, phone_number: str) -> Optional[dict[str, Any]]:
-        """Get WhatsApp session using new schema."""
-        return self.obtener_sesion(phone_number)
+        if self.uses_unified_schema():
+            return self.obtener_sesion(phone_number)
+        phone = quote(phone_number, safe="")
+        rows = self._request(
+            "GET",
+            f"{self._table_url(self.table_estado)}?phone_number=eq.{phone}&limit=1",
+        )
+        return rows[0] if rows else None
 
     def create_user_state(self, phone_number: str, step: str = Step.MENU, data: Optional[dict[str, Any]] = None) -> dict[str, Any]:
+        if not self.uses_unified_schema():
+            existing = self.get_user_state(phone_number)
+            if existing:
+                return existing
+            payload = {
+                "phone_number": phone_number,
+                "paso_actual": step,
+                "datos_temp": data or {},
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+            }
+            rows = self._request("POST", self._table_url(self.table_estado), json=payload)
+            item = rows[0] if isinstance(rows, list) and rows else rows
+            return item or payload
+
         existing = self.obtener_sesion(phone_number)
         if existing:
             return existing
@@ -98,6 +151,23 @@ class SupabaseRepository(BackendRepo):
         return self.obtener_sesion(phone_number) or {}
 
     def update_user_state(self, phone_number: str, step: Optional[str] = None, data: Optional[dict[str, Any]] = None) -> None:
+        if not self.uses_unified_schema():
+            payload: dict[str, Any] = {"updated_at": datetime.now(timezone.utc).isoformat()}
+            if step is not None:
+                payload["paso_actual"] = step
+            if data is not None:
+                payload["datos_temp"] = data
+            current = self.get_user_state(phone_number)
+            if current:
+                self._request(
+                    "PATCH",
+                    f"{self._table_url(self.table_estado)}?phone_number=eq.{quote(phone_number, safe='')}",
+                    json=payload,
+                )
+            else:
+                self.create_user_state(phone_number, step or Step.MENU, data)
+            return
+
         current = self.obtener_sesion(phone_number)
         if not current:
             self.guardar_sesion(phone_number, step or Step.MENU, data)
@@ -114,7 +184,7 @@ class SupabaseRepository(BackendRepo):
         self.update_user_state(phone_number, Step.MENU, {})
 
     def get_temp_data(self, phone_number: str) -> dict[str, Any]:
-        state = self.obtener_sesion(phone_number)
+        state = self.get_user_state(phone_number)
         return self.extract_temp_data(state)
 
     def save_temp_data(self, phone_number: str, data: dict[str, Any]) -> None:
@@ -138,7 +208,24 @@ class SupabaseRepository(BackendRepo):
             return None
 
     def save_report(self, phone_number: str, description: str, category: Optional[str] = None, tracking_code: Optional[str] = None) -> int:
-        """Save a support ticket in the unified schema."""
+        if not self.uses_unified_schema():
+            payload = {
+                "phone_number": phone_number,
+                "tracking_code": tracking_code,
+                "categoria": category,
+                "descripcion": description,
+                "estado": "abierto",
+                "agente_asignado": "Equipo soporte",
+                "creado_en": datetime.now(timezone.utc).isoformat(),
+            }
+            try:
+                data = self._request("POST", self._table_url(self.table_reportes), json=payload)
+                item = data[0] if isinstance(data, list) else data
+                return int(item["id"])
+            except Exception as exc:
+                logger.error("No se pudo crear el reporte historico: %s", exc)
+                return 0
+
         client = self.buscar_cliente_por_telefono(phone_number)
         package = self.buscar_paquete_por_tracking(tracking_code) if tracking_code else None
         payload = {
@@ -159,9 +246,38 @@ class SupabaseRepository(BackendRepo):
             return 0
 
     def save_shipment(self, shipment_data: dict[str, Any]) -> str:
-        """Save shipment using new schema. Returns tracking_code (auto-generated by DB trigger)."""
         data = dict(shipment_data)
-        data["created_at"] = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(timezone.utc).isoformat()
+        if not self.uses_unified_schema():
+            legacy = {
+                "estado": "pendiente",
+                "remitente": data.get("remitente_nombre") or data.get("remitente", ""),
+                "telefono_remitente": data.get("remitente_telefono") or data.get("telefono_remitente", ""),
+                "destinatario": data.get("destinatario_nombre") or data.get("destinatario", ""),
+                "telefono_destinatario": data.get("destinatario_telefono") or data.get("telefono_destinatario", ""),
+                "direccion_origen": "Bodega USA",
+                "direccion_destino": data.get("destinatario_direccion") or data.get("direccion_destino", ""),
+                "tipo_paquete": data.get("contenido") or data.get("tipo_paquete", ""),
+                "peso": data.get("peso_kg") if data.get("peso_kg") is not None else data.get("peso"),
+                "instrucciones": data.get("instrucciones"),
+                "phone_number": data.get("remitente_telefono") or data.get("telefono_remitente", ""),
+                "creado_en": now,
+            }
+            rows = self._request("POST", self._table_url(self.table_envios), json=legacy)
+            item = rows[0] if isinstance(rows, list) and rows else rows
+            if not item:
+                return ""
+            tracking = item.get("tracking_code")
+            if not tracking and item.get("id"):
+                tracking = f"CUR-{int(item['id']):05d}"
+                self._request(
+                    "PATCH",
+                    f"{self._table_url(self.table_envios)}?id=eq.{item['id']}",
+                    json={"tracking_code": tracking},
+                )
+            return tracking or ""
+
+        data["created_at"] = now
         mapped = {
             "cliente_id": data.get("cliente_id"),
             "remitente_nombre": data.get("remitente_nombre") or data.get("remitente", ""),
@@ -193,7 +309,12 @@ class SupabaseRepository(BackendRepo):
         return fetch.data[0]["tracking_code"] if fetch.data else ""
 
     def get_shipments_by_phone(self, phone_number: str, limit: int = 10) -> list[dict[str, Any]]:
-        """Get shipments by client phone using new schema."""
+        if not self.uses_unified_schema():
+            return self._request(
+                "GET",
+                f"{self._table_url(self.table_envios)}?phone_number=eq.{quote(phone_number, safe='')}"
+                f"&order=creado_en.desc&limit={max(1, min(limit, 100))}",
+            )
         client = self.buscar_cliente_por_telefono(phone_number)
         if not client:
             return []
@@ -209,6 +330,12 @@ class SupabaseRepository(BackendRepo):
         return res.data
 
     def get_shipment_by_id(self, shipment_id: str) -> Optional[dict[str, Any]]:
+        if not self.uses_unified_schema():
+            rows = self._request(
+                "GET",
+                f"{self._table_url(self.table_envios)}?id=eq.{quote(str(shipment_id), safe='')}&limit=1",
+            )
+            return rows[0] if rows else None
         res = (
             self.client.table("paquetes")
             .select("*")
@@ -220,9 +347,91 @@ class SupabaseRepository(BackendRepo):
         return res.data[0] if res.data else None
 
     def get_shipment_by_tracking(self, tracking_code: str) -> Optional[dict[str, Any]]:
-        return self.buscar_paquete_por_tracking(tracking_code.strip().upper().replace("#", ""))
+        tracking = tracking_code.strip().upper().replace("#", "")
+        if not self.uses_unified_schema():
+            rows = self._request(
+                "GET",
+                f"{self._table_url(self.table_envios)}?tracking_code=eq.{quote(tracking, safe='')}&limit=1",
+            )
+            return rows[0] if rows else None
+        return self.buscar_paquete_por_tracking(tracking)
 
     def get_dashboard_stats(self) -> dict[str, Any]:
+        if not self.uses_unified_schema():
+            shipments = self._request(
+                "GET",
+                f"{self._table_url(self.table_envios)}?select=*&order=creado_en.desc",
+            )
+            clients = self._request(
+                "GET",
+                f"{self._table_url(self.table_clientes)}?select=phone_number",
+            )
+            reports = self._request(
+                "GET",
+                f"{self._table_url(self.table_reportes)}?select=*&order=creado_en.desc",
+            )
+            sessions = self._request(
+                "GET",
+                f"{self._table_url(self.table_estado)}?select=*&order=updated_at.desc",
+            )
+            now = datetime.now(BUSINESS_TZ)
+            today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+            active_cutoff = now - timedelta(hours=24)
+
+            def parse_timestamp(value: Any) -> Optional[datetime]:
+                if not value:
+                    return None
+                try:
+                    parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+                    if parsed.tzinfo is None:
+                        parsed = parsed.replace(tzinfo=timezone.utc)
+                    return parsed.astimezone(BUSINESS_TZ)
+                except (TypeError, ValueError):
+                    return None
+
+            shipments_today = sum(
+                1
+                for item in shipments
+                if (created := parse_timestamp(item.get("creado_en"))) and created >= today_start
+            )
+            active_sessions = [
+                item
+                for item in sessions
+                if (updated := parse_timestamp(item.get("updated_at"))) and updated >= active_cutoff
+            ]
+            daily = []
+            for offset in range(13, -1, -1):
+                day = (today_start - timedelta(days=offset)).date()
+                count = sum(
+                    1
+                    for item in shipments
+                    if (created := parse_timestamp(item.get("creado_en"))) and created.date() == day
+                )
+                daily.append({"date": day.isoformat(), "count": count})
+
+            open_reports = sum(
+                1 for item in reports if item.get("estado") in {None, "abierto", "en_proceso"}
+            )
+            return {
+                "total_clientes": len(clients),
+                "total_paquetes": len(shipments),
+                "paquetes_hoy": shipments_today,
+                "paquetes_pendientes": sum(
+                    1 for item in shipments if item.get("estado") != "entregado"
+                ),
+                "paquetes_entregados": sum(
+                    1 for item in shipments if item.get("estado") == "entregado"
+                ),
+                "total_shipments": len(shipments),
+                "shipments_today": shipments_today,
+                "active_users": len(active_sessions),
+                "total_reports": len(reports),
+                "open_reports": open_reports,
+                "recent_shipments": shipments[:10],
+                "active_sessions": active_sessions[:20],
+                "shipments_by_day": daily,
+            }
+
         stats = super().get_dashboard_stats()
         return {
             **stats,

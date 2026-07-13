@@ -68,7 +68,7 @@ No conviertas todas las funciones en anonimas. Conserva nombres para rutas, deco
 
 ## Base de datos
 
-- Instalacion nueva: aplica `001`, `002`, `003` y `004` en orden.
+- Instalacion nueva: aplica `001`, `002`, `003`, `004` y `005` en orden.
 - Base desplegada: crea una migracion adicional; no reescribas historia sin plan aprobado.
 - Haz backup y preflight antes de indices, deletes o cambios de claves foraneas.
 - Mantiene 3FN practica; documenta caches y fotografias historicas desnormalizadas.

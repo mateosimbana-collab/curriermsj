@@ -9,7 +9,7 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1/dist/chart.umd.min.js"></script>
 <script src="/dashboard-assets/safe-html.js"></script>
 <script>tailwind.config={theme:{extend:{colors:{light:{bg:'#f1f5f9',card:'#ffffff',border:'#e2e8f0',accent:'#3b82f6'}}}}}</script>
-<style>@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');*{font-family:'Inter',sans-serif}body{background:#f8fafc;color:#1e293b}.card{background:#ffffff;border:1px solid #e2e8f0;border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,.04)}.kpi-value{font-size:1.8rem;font-weight:700;line-height:1.1;color:#0f172a}.kpi-label{font-size:.7rem;color:#64748b;text-transform:uppercase;letter-spacing:.05em;font-weight:600}.status-dot{width:8px;height:8px;border-radius:50%;display:inline-block}.progress-bar{height:6px;border-radius:3px;background:#e2e8f0;overflow:hidden}.progress-fill{height:100%;border-radius:3px;transition:width .4s ease}.table-row:hover{background:rgba(59,130,246,.03)}.sidebar-link.active{background:rgba(59,130,246,.08);color:#2563eb;border-left:3px solid #3b82f6;font-weight:600}.sidebar-link{border-left:3px solid transparent;transition:all .2s;color:#475569}.sidebar-link:hover{background:rgba(59,130,246,.04);color:#1e40af}.sidebar{background:#ffffff;border-right:1px solid #e2e8f0}::-webkit-scrollbar{width:6px}::-webkit-scrollbar-track{background:#f1f5f9}::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:3px}.fade-in{animation:fadeIn .3s ease-out}@keyframes fadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}</style>
+<style>@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');*{font-family:'Inter',sans-serif}body{background:#f8fafc;color:#1e293b}.card{background:#ffffff;border:1px solid #e2e8f0;border-radius:8px;box-shadow:0 1px 3px rgba(0,0,0,.04)}.kpi-value{font-size:1.8rem;font-weight:700;line-height:1.1;color:#0f172a}.kpi-label{font-size:.7rem;color:#64748b;text-transform:uppercase;letter-spacing:.05em;font-weight:600}.status-dot{width:8px;height:8px;border-radius:50%;display:inline-block}.progress-bar{height:6px;border-radius:3px;background:#e2e8f0;overflow:hidden}.progress-fill{height:100%;border-radius:3px;transition:width .4s ease}.table-row:hover{background:rgba(59,130,246,.03)}.sidebar-link.active{background:rgba(59,130,246,.08);color:#2563eb;border-left:3px solid #3b82f6;font-weight:600}.sidebar-link{border-left:3px solid transparent;transition:all .2s;color:#475569}.sidebar-link:hover{background:rgba(59,130,246,.04);color:#1e40af}.sidebar{background:#ffffff;border-right:1px solid #e2e8f0}main{min-width:0}dialog::backdrop{background:rgba(15,23,42,.45)}::-webkit-scrollbar{width:6px}::-webkit-scrollbar-track{background:#f1f5f9}::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:3px}.fade-in{animation:fadeIn .3s ease-out}@keyframes fadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}@media(max-width:767px){body{display:block!important}.sidebar{width:100%!important;height:auto!important;position:sticky!important;z-index:30;border-right:0;border-bottom:1px solid #e2e8f0}.sidebar>div:first-child{padding:.75rem 1rem}.sidebar>div:last-child,.sidebar nav>p{display:none}.sidebar nav{display:flex;gap:.25rem;overflow-x:auto;padding:.5rem}.sidebar-link{flex:none;border-left:0;border-bottom:3px solid transparent;padding:.6rem .75rem}.sidebar-link.active{border-left:0;border-bottom-color:#3b82f6}.sidebar-link span{white-space:nowrap}main{padding:1rem!important}.tab-content>header{align-items:flex-start;flex-wrap:wrap;gap:.75rem}}</style>
 </head>
 <body class="min-h-screen flex">
 <aside class="sidebar w-64 flex-shrink-0 h-screen sticky top-0 flex flex-col">
@@ -59,7 +59,7 @@
 
 <!-- ========== TAB: GANANCIAS ========== -->
 <div id="tab-ganancias" class="tab-content hidden space-y-6">
-<header class="flex items-center justify-between"><div><h2 class="text-xl font-semibold text-slate-900">Finanzas</h2><p class="text-sm text-slate-500 mt-0.5">Flujo de caja, utilidad, gastos, planilla y punto de equilibrio</p></div></header>
+<header class="flex items-center justify-between gap-3"><div><h2 class="text-xl font-semibold text-slate-900">Finanzas</h2><p class="text-sm text-slate-500 mt-0.5">Flujo de caja, utilidad, gastos, planilla y punto de equilibrio</p></div><div class="flex flex-wrap gap-2"><button type="button" onclick="openFinanceDialog('movementDialog')" class="inline-flex items-center gap-1.5 rounded-md bg-blue-600 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-700"><i data-lucide="plus" class="h-4 w-4"></i> Movimiento</button><button type="button" onclick="openFinanceDialog('payrollDialog')" class="inline-flex items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"><i data-lucide="user-plus" class="h-4 w-4"></i> Planilla</button><button type="button" onclick="openFinanceDialog('marginDialog')" class="inline-flex items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"><i data-lucide="bar-chart-3" class="h-4 w-4"></i> Margen</button></div></header>
 <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
 <div class="card p-5 bg-gradient-to-br from-emerald-50 to-white border-emerald-200"><span class="kpi-label text-emerald-600">Total</span><p class="kpi-value text-emerald-700" id="earnTotal">$0</p></div>
 <div class="card p-5 bg-gradient-to-br from-blue-50 to-white border-blue-200"><span class="kpi-label text-blue-600">Hoy</span><p class="kpi-value text-blue-700" id="earnToday">$0</p><p class="text-xs text-slate-500 mt-1.5">ingresos de hoy</p></div>
@@ -115,16 +115,77 @@
 
 </main>
 
+<dialog id="movementDialog" class="w-[min(92vw,520px)] rounded-lg border border-slate-200 bg-white p-0 shadow-2xl">
+<form id="movementForm" class="p-5">
+<div class="mb-5 flex items-center justify-between"><div><h3 class="text-base font-semibold text-slate-900">Registrar movimiento</h3><p class="text-xs text-slate-500">Entrada o salida de caja</p></div><button type="button" onclick="this.closest('dialog').close()" class="rounded-md p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700" title="Cerrar"><i data-lucide="x" class="h-4 w-4"></i></button></div>
+<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+<label class="text-xs font-medium text-slate-700">Tipo<select name="tipo" id="movementType" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" required><option value="ingreso">Ingreso</option><option value="egreso">Egreso</option></select></label>
+<label class="text-xs font-medium text-slate-700">Monto<input name="monto" type="number" min="0.01" max="99999999.99" step="0.01" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" required></label>
+<label class="text-xs font-medium text-slate-700">Categoria<input name="categoria" maxlength="80" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" required></label>
+<label id="expenseTypeField" class="text-xs font-medium text-slate-700">Clase de gasto<select name="tipo_gasto" id="expenseType" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"><option value="fijo">Fijo</option><option value="variable">Variable</option></select></label>
+<label class="text-xs font-medium text-slate-700 sm:col-span-2">Fecha<input name="fecha" id="movementDate" type="date" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" required></label>
+<label class="text-xs font-medium text-slate-700 sm:col-span-2">Descripcion<textarea name="descripcion" maxlength="300" rows="3" class="mt-1 w-full resize-y rounded-md border border-slate-300 px-3 py-2 text-sm"></textarea></label>
+</div>
+<div class="mt-5 flex justify-end gap-2"><button type="button" onclick="this.closest('dialog').close()" class="rounded-md border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700">Cancelar</button><button type="submit" class="rounded-md bg-blue-600 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-700">Guardar</button></div>
+</form>
+</dialog>
+
+<dialog id="payrollDialog" class="w-[min(92vw,560px)] rounded-lg border border-slate-200 bg-white p-0 shadow-2xl">
+<form id="payrollForm" class="p-5">
+<div class="mb-5 flex items-center justify-between"><div><h3 class="text-base font-semibold text-slate-900">Registrar planilla</h3><p class="text-xs text-slate-500">Sueldo, descuentos y fecha de pago</p></div><button type="button" onclick="this.closest('dialog').close()" class="rounded-md p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700" title="Cerrar"><i data-lucide="x" class="h-4 w-4"></i></button></div>
+<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+<label class="text-xs font-medium text-slate-700 sm:col-span-2">Persona<input name="nombre" maxlength="120" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" required></label>
+<label class="text-xs font-medium text-slate-700">Cargo<input name="cargo" maxlength="100" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"></label>
+<label class="text-xs font-medium text-slate-700">Estado<select name="estado_pago" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"><option value="pendiente">Pendiente</option><option value="pagado">Pagado</option></select></label>
+<label class="text-xs font-medium text-slate-700">Sueldo<input name="sueldo" type="number" min="0.01" max="99999999.99" step="0.01" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" required></label>
+<label class="text-xs font-medium text-slate-700">Descuentos<input name="descuentos" type="number" min="0" max="99999999.99" step="0.01" value="0" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" required></label>
+<label class="text-xs font-medium text-slate-700 sm:col-span-2">Fecha de pago<input name="fecha_pago" id="payrollDate" type="date" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" required></label>
+</div>
+<div class="mt-5 flex justify-end gap-2"><button type="button" onclick="this.closest('dialog').close()" class="rounded-md border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700">Cancelar</button><button type="submit" class="rounded-md bg-blue-600 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-700">Guardar</button></div>
+</form>
+</dialog>
+
+<dialog id="marginDialog" class="w-[min(92vw,560px)] rounded-lg border border-slate-200 bg-white p-0 shadow-2xl">
+<form id="marginForm" class="p-5">
+<div class="mb-5 flex items-center justify-between"><div><h3 class="text-base font-semibold text-slate-900">Registrar margen</h3><p class="text-xs text-slate-500">Venta y costo por producto</p></div><button type="button" onclick="this.closest('dialog').close()" class="rounded-md p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700" title="Cerrar"><i data-lucide="x" class="h-4 w-4"></i></button></div>
+<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+<label class="text-xs font-medium text-slate-700 sm:col-span-2">Producto<input name="producto" maxlength="120" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" required></label>
+<label class="text-xs font-medium text-slate-700 sm:col-span-2">Categoria<input name="categoria" maxlength="80" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"></label>
+<label class="text-xs font-medium text-slate-700">Precio de venta<input name="precio_venta" type="number" min="0" max="99999999.99" step="0.01" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" required></label>
+<label class="text-xs font-medium text-slate-700">Costo<input name="costo_producto" type="number" min="0" max="99999999.99" step="0.01" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" required></label>
+<label class="text-xs font-medium text-slate-700 sm:col-span-2">Unidades<input name="unidades" type="number" min="1" max="1000000" step="1" value="1" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" required></label>
+</div>
+<div class="mt-5 flex justify-end gap-2"><button type="button" onclick="this.closest('dialog').close()" class="rounded-md border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700">Cancelar</button><button type="submit" class="rounded-md bg-blue-600 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-700">Guardar</button></div>
+</form>
+</dialog>
+
 <script>
 lucide.createIcons(); let chartsBuilt = false;
 function updateClock(){document.getElementById('liveTime').textContent=new Date().toLocaleTimeString('es-EC',{hour:'2-digit',minute:'2-digit',second:'2-digit'});}
 updateClock();setInterval(updateClock,1000);
 document.querySelectorAll('[data-tab]').forEach(l=>l.addEventListener('click',function(){document.querySelectorAll('[data-tab]').forEach(x=>x.classList.remove('active'));this.classList.add('active');document.querySelectorAll('.tab-content').forEach(t=>t.classList.add('hidden'));const tab=document.getElementById('tab-'+this.dataset.tab);if(tab)tab.classList.remove('hidden');}));
 
-async function fetchData() {
+function localDateValue(){const now=new Date();now.setMinutes(now.getMinutes()-now.getTimezoneOffset());return now.toISOString().slice(0,10);}
+function setFinanceDefaults(){document.getElementById('movementDate').value=localDateValue();document.getElementById('payrollDate').value=localDateValue();syncExpenseType();}
+function syncExpenseType(){const isExpense=document.getElementById('movementType').value==='egreso';const field=document.getElementById('expenseTypeField');const select=document.getElementById('expenseType');field.classList.toggle('opacity-50',!isExpense);select.disabled=!isExpense;select.required=isExpense;}
+function openFinanceDialog(id){setFinanceDefaults();document.getElementById(id).showModal();lucide.createIcons();}
+async function submitFinanceForm(event,path){
+event.preventDefault();const form=event.currentTarget;const submit=form.querySelector('[type="submit"]');submit.disabled=true;submit.classList.add('opacity-60');
+try{const payload=Object.fromEntries(new FormData(form).entries());const response=await fetch(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});const result=await response.json();if(!response.ok)throw new Error(result.error||'No se pudo guardar');form.closest('dialog').close();form.reset();setFinanceDefaults();await fetchData(true);}
+catch(error){alert(error.message||'No se pudo guardar el registro');}
+finally{submit.disabled=false;submit.classList.remove('opacity-60');}
+}
+document.getElementById('movementType').addEventListener('change',syncExpenseType);
+document.getElementById('movementForm').addEventListener('submit',event=>submitFinanceForm(event,'/api/finance/movimientos'));
+document.getElementById('payrollForm').addEventListener('submit',event=>submitFinanceForm(event,'/api/finance/planilla'));
+document.getElementById('marginForm').addEventListener('submit',event=>submitFinanceForm(event,'/api/finance/margenes'));
+setFinanceDefaults();
+
+async function fetchData(forceCharts=false) {
 try {
 const [dResp, eResp, fResp] = await Promise.all([fetch('/api/dashboard'), fetch('/api/earnings'), fetch('/api/finance-summary')]);
 const d = await dResp.json(); const e = await eResp.json(); const f = await fResp.json();
+if(forceCharts){['shipmentsChart','cashflowChart','earningsChart'].forEach(id=>{const chart=Chart.getChart(id);if(chart)chart.destroy();});chartsBuilt=false;}
 renderMain(d,e,f); if(!chartsBuilt){chartsBuilt=true;buildCharts(d,e,f);}
 } catch(err){console.error(err);}
 }

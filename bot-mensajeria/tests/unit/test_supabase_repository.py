@@ -1,4 +1,5 @@
 import os
+from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -70,6 +71,17 @@ class TestGetClient:
         _mock_execute(repo, [])
         result = repo.get_client("593991234567")
         assert result is None
+
+    def test_legacy_schema_uses_phone_number(self, repo):
+        repo._unified_schema = False
+        with patch.object(
+            repo,
+            "_request",
+            return_value=[{"phone_number": "593991234567", "nombre": "Juan"}],
+        ) as request:
+            result = repo.get_client("593991234567")
+        assert result["nombre"] == "Juan"
+        assert "phone_number=eq.593991234567" in request.call_args.args[1]
 
 
 class TestSaveClient:
@@ -179,6 +191,15 @@ class TestSaveReport:
         with patch.object(repo, "_request", return_value={"id": 55}):
             assert repo.save_report("593991234567", "test") == 55
 
+    def test_legacy_schema_uses_historical_columns(self, repo):
+        repo._unified_schema = False
+        with patch.object(repo, "_request", return_value=[{"id": 12}]) as request:
+            result = repo.save_report("593991234567", "Cotizacion", category="Cotizacion")
+        assert result == 12
+        payload = request.call_args.kwargs["json"]
+        assert payload["phone_number"] == "593991234567"
+        assert payload["agente_asignado"] == "Equipo soporte"
+
 
 class TestSaveShipment:
     def test_saves_and_returns_tracking(self, repo):
@@ -227,6 +248,24 @@ class TestGetShipmentByTracking:
         with patch.object(repo, "buscar_paquete_por_tracking", return_value=None):
             result = repo.get_shipment_by_tracking("CUR-99999")
             assert result is None
+
+
+class TestLegacyDashboard:
+    def test_uses_real_historical_rows(self, repo):
+        repo._unified_schema = False
+        now = datetime.now(timezone.utc).isoformat()
+        responses = [
+            [{"id": 1, "estado": "pendiente", "creado_en": now}],
+            [{"phone_number": "593991234567"}],
+            [{"id": 1, "estado": "abierto", "creado_en": now}],
+            [{"phone_number": "593991234567", "updated_at": now}],
+        ]
+        with patch.object(repo, "_request", side_effect=responses):
+            stats = repo.get_dashboard_stats()
+        assert stats["total_shipments"] == 1
+        assert stats["shipments_today"] == 1
+        assert stats["open_reports"] == 1
+        assert len(stats["shipments_by_day"]) == 14
 
 
 class TestExtractTempData:

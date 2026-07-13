@@ -16,7 +16,7 @@ class Buttons:
     ]
     MENU_PRIMARY = [
         {"id": "rastrear", "title": "Rastrear"},
-        {"id": "cotizar", "title": "Consultar envio"},
+        {"id": "cotizar", "title": "Solicitar cotizacion"},
         {"id": "mis_envios", "title": "Mis envios"},
     ]
     MENU_SECONDARY = [
@@ -279,6 +279,19 @@ class MessageTemplates:
             f"{LINE}\n"
             "*Valor:* por confirmar con un agente.\n"
             "_Confirma para registrar tus datos._"
+        )
+
+    @staticmethod
+    def quote_request_created(report_id: int, data: dict[str, Any]) -> str:
+        reference = f" #COT-{report_id:04d}" if report_id else ""
+        return (
+            f"*SOLICITUD DE COTIZACION{reference}*\n"
+            f"{LINE}\n"
+            f"Destino: *{_value(data.get('destino'))}*\n"
+            f"Tipo: *{_value(data.get('tipo_paquete'))}*\n"
+            f"Peso aproximado: *{_value(data.get('peso'))}*\n"
+            f"{LINE}\n"
+            "Una persona revisara la categoria, ciudad, modalidad y descuentos antes de confirmar el valor."
         )
 
     @staticmethod

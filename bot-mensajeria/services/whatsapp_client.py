@@ -155,7 +155,17 @@ class WhatsAppClient:
             )
             logger.info("WhatsApp %s: %s", description, response.status_code)
             if response.status_code >= 400:
-                logger.warning("Error WhatsApp %s: %s", response.status_code, response.text[:500])
+                try:
+                    error = response.json().get("error", {})
+                except (TypeError, ValueError):
+                    error = {}
+                if isinstance(error, dict) and error.get("code") == 131030:
+                    logger.warning(
+                        "WhatsApp 131030: el destinatario no esta autorizado en el entorno de prueba de Meta; "
+                        "agregalo a la lista de destinatarios permitidos"
+                    )
+                else:
+                    logger.warning("Error WhatsApp %s: %s", response.status_code, response.text[:500])
             return 200 <= response.status_code < 300
         except requests.RequestException as exc:
             logger.error("Error enviando %s: %s", description, exc)

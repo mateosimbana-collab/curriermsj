@@ -212,7 +212,7 @@ class TestHandleMenu:
         bot.handle_menu(event, "cotizar", {})
         mock_repo.update_user_state.assert_called_once()
         args = mock_repo.update_user_state.call_args[0]
-        assert args[1] == Step.QUOTE_ORIGIN
+        assert args[1] == Step.QUOTE_DESTINATION
 
     def test_mis_envios_calls_list(self, bot, mock_repo, mock_whatsapp):
         event = IncomingMessage(phone_number="593991234567", text="mis_envios", message_type="text")
@@ -287,17 +287,26 @@ class TestHandleQuoteDestination:
 
 
 class TestHandleQuoteService:
-    def test_invalid_service_retries(self, bot, mock_repo, mock_whatsapp):
+    def test_stale_service_state_creates_manual_request(self, bot, mock_repo, mock_whatsapp):
+        mock_repo.save_report.return_value = 7
         event = IncomingMessage(phone_number="593991234567", text="invalido", message_type="text")
-        bot.handle_quote_service(event, "invalido", {"opciones_envio": {}})
-        mock_whatsapp.send_buttons.assert_called_once()
+        bot.handle_quote_service(event, "invalido", {"destino": "Quito"})
+        mock_repo.save_report.assert_called_once()
+        mock_repo.reset_user_state.assert_called_once()
+        mock_whatsapp.send_text.assert_called_once()
 
-    def test_valid_service_saves_and_shows_summary(self, bot, mock_repo, mock_whatsapp):
-        event = IncomingMessage(phone_number="593991234567", text="1", message_type="text")
-        bot.handle_quote_service(event, "1", {"opciones_envio": {}})
-        mock_repo.update_user_state.assert_called_once()
-        args = mock_repo.update_user_state.call_args[0]
-        assert args[1] == Step.QUOTE_SUMMARY
+
+class TestHandleQuoteWeight:
+    def test_weight_creates_manual_request_without_price(self, bot, mock_repo, mock_whatsapp):
+        mock_repo.save_report.return_value = 8
+        event = IncomingMessage(phone_number="593991234567", text="1 - 5 kg", message_type="text")
+        data = {"destino": "Cuenca", "tipo_paquete": "Ropa"}
+        bot.handle_quote_weight(event, "peso_medio", data)
+        mock_repo.save_report.assert_called_once()
+        description = mock_repo.save_report.call_args.args[1]
+        assert "Cuenca" in description
+        assert "Ropa" in description
+        mock_repo.reset_user_state.assert_called_once()
 
 
 class TestHandleQuoteSummary:
@@ -307,11 +316,11 @@ class TestHandleQuoteSummary:
         mock_repo.reset_user_state.assert_called_once()
 
     def test_confirm_starts_shipment(self, bot, mock_repo, mock_whatsapp):
+        mock_repo.save_report.return_value = 9
         event = IncomingMessage(phone_number="593991234567", text="confirmar_envio", message_type="text")
         bot.handle_quote_summary(event, "confirmar_envio", {})
-        mock_repo.update_user_state.assert_called_once()
-        args = mock_repo.update_user_state.call_args[0]
-        assert args[1] == Step.NEW_SHIPMENT_NAME
+        mock_repo.save_report.assert_called_once()
+        mock_repo.reset_user_state.assert_called_once()
 
 
 class TestHandleReportType:

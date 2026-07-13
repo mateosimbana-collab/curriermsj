@@ -64,6 +64,9 @@ classDiagram
         +login()
         +listar_clientes()
         +crear_paquete()
+        +listar_recepciones()
+        +consolidar_recepciones()
+        +registrar_pago()
         +actualizar_estado()
         +exportar_reportes()
     }
@@ -76,6 +79,9 @@ classDiagram
         +listar_clientes()
         +crear_cliente()
         +listar_paquetes()
+        +listar_recepciones()
+        +listar_cobros()
+        +get_operational_summary()
         +actualizar_estado_paquete()
         +get_dashboard_stats()
     }
@@ -136,6 +142,16 @@ Dueno/soporte -> HTTP Basic -> panel HTML -> endpoint legado
               -> repositorio compatible -> tablas historicas o esquema unificado
 ```
 
+### Bodega y cobros
+
+```text
+Recepcion USA -> fotos enviadas -> decision del cliente -> despachar -> armado
+              -> consolidar recepciones -> paquete CUR -> tracking publico
+Pago informado -> pendiente -> verificacion de dueno/supervisor -> saldo actualizado
+```
+
+El estado de bodega es interno y no se publica como tracking. El dashboard historico del dueno conserva un modulo financiero separado, alimentado por `movimientos_financieros`, `planilla_personal` y `margenes_producto`; esas tablas se habilitan de forma idempotente con `database/legacy_upgrade/001_finance_dashboard.sql`.
+
 ## Modelo de datos
 
 El modelo unificado esta en `database/migrations/`. Sus grupos principales son:
@@ -144,7 +160,9 @@ El modelo unificado esta en `database/migrations/`. Sus grupos principales son:
 |---|---|
 | Acceso | `usuarios` |
 | Clientes | `clientes`, `grupos_clientes`, `mayoristas`, `prospectos` |
+| Bodega USA | `recepciones_usa` |
 | Logistica | `paquetes`, `tracking_events`, `imagenes_paquete`, `etiquetas_estado` |
+| Cobros | `pagos_paquete` |
 | Comunicacion | `sesiones_whatsapp`, `notificaciones`, `faq`, `reportes` |
 | Control | `configuracion`, `audit_log`, `reportes_generados` |
 
@@ -153,11 +171,13 @@ La normalizacion sigue 3FN de forma practica:
 - Cada entidad representa un concepto y usa una clave primaria propia.
 - Las relaciones usan claves foraneas en vez de repetir datos maestros.
 - El historial de tracking esta separado del paquete.
+- El flujo interno de recepcion y consolidacion esta separado del tracking que ve el cliente.
+- Los pagos se registran por paquete y solo afectan el saldo cuando un supervisor o administrador los verifica.
 - Los grupos, mayoristas, prospectos y sesiones no se incrustan en `clientes`.
 - `estado_actual` es una cache deliberada del ultimo evento para consultas operativas.
 - Remitente, destinatario y direcciones quedan como fotografia historica del envio.
 
-El archivo `bot-mensajeria/supabase_schema.sql` corresponde al esquema anterior (`envios`, `estado_usuario` y tablas financieras). Se conserva para instalaciones existentes y datos de prueba. Una instalacion nueva debe usar las migraciones `001` a `004`.
+El archivo `bot-mensajeria/supabase_schema.sql` corresponde al esquema anterior (`envios`, `estado_usuario` y tablas financieras). Se conserva para instalaciones existentes y datos de prueba. Una instalacion nueva debe usar las migraciones `001` a `005`. Una base historica debe ejecutar primero `database/legacy_upgrade/000_preserve_historical_tables.sql` para apartar tablas con nombres incompatibles sin borrar sus datos.
 
 ## Limites de seguridad
 
@@ -183,6 +203,9 @@ El backend agrega cabeceras de seguridad, limita el cuerpo a 1 MiB, restringe CO
 6. El bot no interfiere con llamadas simultaneas de WhatsApp Business.
 7. Las tablas principales usan eliminacion logica donde aplica.
 8. El panel financiero legado, soporte, logs y pruebas siguen siendo funcionalidades soportadas.
+9. La cotizacion del bot crea una solicitud para revision humana; no promete una tarifa automatica sin validar categoria, destino, modalidad y descuentos.
+10. El dinero se muestra solo a administrador y supervisor; agentes y soporte reciben indicadores operativos.
+11. Quien registra un pago como agente no puede verificarlo.
 
 ## Decisiones de compatibilidad
 

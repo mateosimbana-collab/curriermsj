@@ -14,7 +14,7 @@ La documentacion completa esta en el README principal del repositorio:
 |---|---|
 | `app.py` | Punto de entrada legado: arma dependencias, registra todas las rutas y crea Flask |
 | `config.py` | Carga variables de entorno y nombres de tablas |
-| `bot/courier_bot.py` | Orquesta estados, cotizacion, rastreo, reportes y registro |
+| `bot/courier_bot.py` | Orquesta estados, solicitud manual de cotizacion, rastreo, reportes y registro |
 | `bot/messages.py` | Textos tipo tarjeta y botones de WhatsApp |
 | `domain/constants.py` | Estados, tarifas, servicios y aliases |
 | `domain/models.py` | Modelo `IncomingMessage` |
@@ -92,6 +92,9 @@ Ejecutar `python app.py` mantiene estas superficies:
 | `GET` | `/api/system-stats` | HTTP Basic | Clientes, estados y reportes |
 | `GET` | `/api/earnings` | HTTP Basic | Ingresos por periodo |
 | `GET` | `/api/finance-summary` | HTTP Basic | Gastos, planilla, flujo de caja y margenes |
+| `POST` | `/api/finance/movimientos` | HTTP Basic | Registra ingresos y egresos |
+| `POST` | `/api/finance/planilla` | HTTP Basic | Registra sueldo, descuentos y pago |
+| `POST` | `/api/finance/margenes` | HTTP Basic | Registra costos y ventas por producto |
 | `GET` | `/api/logs` | HTTP Basic | Ultimas lineas del log |
 | `GET` | `/api/test-results` | HTTP Basic | Resumen de la suite de pruebas |
 
@@ -104,8 +107,10 @@ Este modo puede trabajar con instalaciones historicas, pero el repositorio compl
 | Caso | SQL o herramienta |
 |---|---|
 | Instalacion historica de los paneles | `supabase_schema.sql` |
-| Instalacion nueva unificada | `../database/migrations/001_initial_schema.sql` a `004_security_and_integrity.sql` |
-| Migrar `envios` historicos | `../database/migrate_old_data.py` |
+| Finanzas del panel historico | `../database/legacy_upgrade/001_finance_dashboard.sql` |
+| Preflight de una base historica | `../database/legacy_upgrade/000_preserve_historical_tables.sql` |
+| Instalacion nueva unificada | `../database/migrations/001_initial_schema.sql` a `005_operational_workflow.sql` |
+| Migrar clientes, `envios`, reportes y FAQ | `../database/migrate_old_data.py` |
 
 `services/supabase_repository.py` funciona como capa de compatibilidad: mantiene los metodos que espera `CourierBot` y traduce estadisticas al contrato de los dashboards anteriores. No ejecutes los dos esquemas a ciegas sobre produccion; primero identifica las tablas existentes y crea un respaldo verificable.
 

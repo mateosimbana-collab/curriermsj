@@ -2,8 +2,8 @@ import json
 import logging
 import os
 from datetime import datetime, timedelta, timezone
+from decimal import Decimal, InvalidOperation
 from typing import Any
-from zoneinfo import ZoneInfo
 
 from flask import Flask, jsonify, request, send_from_directory
 
@@ -15,10 +15,7 @@ from domain.models import IncomingMessage
 
 logger = logging.getLogger(__name__)
 
-try:
-    BUSINESS_TZ = ZoneInfo("America/Guayaquil")
-except Exception:
-    BUSINESS_TZ = timezone.utc
+BUSINESS_TZ = timezone(timedelta(hours=-5))
 
 
 class WhatsAppWebhookParser:
@@ -124,6 +121,52 @@ def _money(value: Any) -> float:
         return float(value or 0)
     except (TypeError, ValueError):
         return 0.0
+
+
+def _finance_text(data: dict[str, Any], field: str, *, required: bool = True, limit: int = 120) -> str:
+    value = str(data.get(field) or "").strip()
+    if required and not value:
+        raise ValueError(f"{field} es obligatorio")
+    if len(value) > limit:
+        raise ValueError(f"{field} supera {limit} caracteres")
+    return value
+
+
+def _finance_amount(data: dict[str, Any], field: str, *, allow_zero: bool = False) -> float:
+    try:
+        value = Decimal(str(data.get(field, 0 if allow_zero else "")))
+    except (InvalidOperation, ValueError):
+        raise ValueError(f"{field} debe ser un numero valido") from None
+    if not value.is_finite() or value < 0 or (not allow_zero and value == 0):
+        raise ValueError(f"{field} debe ser mayor que cero")
+    if value > Decimal("99999999.99"):
+        raise ValueError(f"{field} supera el maximo permitido")
+    return float(value.quantize(Decimal("0.01")))
+
+
+def _finance_date(data: dict[str, Any], field: str) -> str:
+    raw = str(data.get(field) or "").strip()
+    if not raw:
+        return datetime.now(BUSINESS_TZ).isoformat()
+    try:
+        parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    except ValueError:
+        try:
+            parsed = datetime.strptime(raw, "%Y-%m-%d")
+        except ValueError:
+            raise ValueError(f"{field} debe tener una fecha valida") from None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=BUSINESS_TZ)
+    return parsed.isoformat()
+
+
+def _insert_optional_table(bot: CourierBot, table_name: str, payload: dict[str, Any]) -> dict[str, Any]:
+    rows = bot.repository._request(
+        "POST",
+        bot.repository._table(table_name),
+        json=payload,
+    )
+    return rows[0] if isinstance(rows, list) and rows else payload
 
 
 def _empty_cashflow(today_start: datetime) -> dict[str, dict[str, float | str]]:
@@ -335,6 +378,8 @@ def create_app(bot: CourierBot) -> Flask:
             now = datetime.now(BUSINESS_TZ)
             today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
             month_start = today_start.replace(day=1)
+            cashflow_start = today_start - timedelta(days=13)
+            cashflow_by_day = _empty_cashflow(today_start)
 
             envios = _safe_table_get(
                 bot,
@@ -375,11 +420,15 @@ def create_app(bot: CourierBot) -> Flask:
                 bucket = category_totals.setdefault(category, {"revenue": 0.0, "cost": 0.0})
                 bucket["revenue"] += amount
                 bucket["cost"] += cost
-                if created and created >= month_start:
+                if created and month_start <= created <= now:
                     shipment_income_month += amount
                     shipment_cost_month += cost
                     if created >= today_start:
                         shipment_income_today += amount
+                if created and cashflow_start <= created <= now:
+                    day_key = created.date().isoformat()
+                    cashflow_by_day[day_key]["ingresos"] += amount
+                    cashflow_by_day[day_key]["egresos"] += cost
 
             cash_income_month = shipment_income_month
             cash_income_today = shipment_income_today
@@ -387,19 +436,18 @@ def create_app(bot: CourierBot) -> Flask:
             variable_expenses = 0.0
             operating_expenses = 0.0
             expense_rows = []
-            cashflow_by_day = _empty_cashflow(today_start)
             for mov in movimientos:
                 date = _parse_dt(mov.get("fecha") or mov.get("creado_en"))
                 amount = _money(mov.get("monto"))
-                if not date or date < month_start:
+                if not date or date < month_start or date > now:
                     continue
                 tipo = (mov.get("tipo") or "").lower()
                 gasto_tipo = (mov.get("tipo_gasto") or "").lower()
                 day_key = date.date().isoformat()
                 if tipo == "ingreso":
                     cash_income_month += amount
-                    cashflow_by_day.setdefault(day_key, {"date": day_key, "ingresos": 0.0, "egresos": 0.0})
-                    cashflow_by_day[day_key]["ingresos"] += amount
+                    if date >= cashflow_start:
+                        cashflow_by_day[day_key]["ingresos"] += amount
                     if date >= today_start:
                         cash_income_today += amount
                 else:
@@ -408,8 +456,8 @@ def create_app(bot: CourierBot) -> Flask:
                         fixed_expenses += amount
                     else:
                         variable_expenses += amount
-                    cashflow_by_day.setdefault(day_key, {"date": day_key, "ingresos": 0.0, "egresos": 0.0})
-                    cashflow_by_day[day_key]["egresos"] += amount
+                    if date >= cashflow_start:
+                        cashflow_by_day[day_key]["egresos"] += amount
                     expense_rows.append({
                         "categoria": mov.get("categoria") or "Sin categoria",
                         "descripcion": mov.get("descripcion") or "",
@@ -425,8 +473,11 @@ def create_app(bot: CourierBot) -> Flask:
                 salary = _money(item.get("sueldo"))
                 discount = _money(item.get("descuentos"))
                 net_salary = max(salary - discount, 0)
-                if pay_date and pay_date >= month_start:
+                status = item.get("estado_pago") or "pendiente"
+                if pay_date and month_start <= pay_date <= now:
                     payroll_month += net_salary
+                if pay_date and cashflow_start <= pay_date <= now and status == "pagado":
+                    cashflow_by_day[pay_date.date().isoformat()]["egresos"] += net_salary
                 payroll_rows.append({
                     "nombre": item.get("nombre") or "",
                     "cargo": item.get("cargo") or "",
@@ -434,7 +485,7 @@ def create_app(bot: CourierBot) -> Flask:
                     "descuentos": round(discount, 2),
                     "neto": round(net_salary, 2),
                     "fecha_pago": pay_date.date().isoformat() if pay_date else "",
-                    "estado_pago": item.get("estado_pago") or "pendiente",
+                    "estado_pago": status,
                 })
 
             product_margin_rows = []
@@ -467,13 +518,14 @@ def create_app(bot: CourierBot) -> Flask:
             margin_month = (net_profit_month / cash_income_month * 100) if cash_income_month else 0.0
             variable_rate = (variable_expenses + shipment_cost_month) / cash_income_month if cash_income_month else 0.0
             contribution_rate = max(1 - variable_rate, 0.01)
-            break_even_month = (fixed_expenses + payroll_month) / contribution_rate
+            fixed_costs_month = fixed_expenses + payroll_month
+            break_even_month = fixed_costs_month / contribution_rate
 
             return jsonify({
                 "income_today": round(cash_income_today, 2),
                 "income_month": round(cash_income_month, 2),
                 "expenses_month": round(total_expenses_month, 2),
-                "fixed_expenses": round(fixed_expenses, 2),
+                "fixed_expenses": round(fixed_costs_month, 2),
                 "variable_expenses": round(variable_expenses + shipment_cost_month, 2),
                 "payroll_month": round(payroll_month, 2),
                 "cost_of_goods_sold": round(shipment_cost_month, 2),
@@ -489,6 +541,93 @@ def create_app(bot: CourierBot) -> Flask:
         except Exception as e:
             logger.exception("Error al obtener resumen financiero: %s", e)
             return jsonify({"error": str(e)}), 500
+
+    @app.post("/api/finance/movimientos")
+    @require_legacy_auth
+    def create_finance_movement():
+        data = request.get_json(silent=True)
+        if not isinstance(data, dict):
+            return jsonify({"error": "Envia un objeto JSON valido"}), 400
+        try:
+            movement_type = str(data.get("tipo") or "").strip().lower()
+            if movement_type not in {"ingreso", "egreso"}:
+                raise ValueError("tipo debe ser ingreso o egreso")
+            expense_type = str(data.get("tipo_gasto") or "").strip().lower()
+            if movement_type == "egreso" and expense_type not in {"fijo", "variable"}:
+                raise ValueError("tipo_gasto debe ser fijo o variable para un egreso")
+            payload = {
+                "tipo": movement_type,
+                "categoria": _finance_text(data, "categoria", limit=80),
+                "descripcion": _finance_text(data, "descripcion", required=False, limit=300) or None,
+                "monto": _finance_amount(data, "monto"),
+                "tipo_gasto": expense_type if movement_type == "egreso" else None,
+                "fecha": _finance_date(data, "fecha"),
+            }
+            item = _insert_optional_table(bot, "movimientos_financieros", payload)
+            return jsonify(item), 201
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 400
+        except Exception as exc:
+            logger.exception("Error registrando movimiento financiero: %s", exc)
+            return jsonify({"error": "No se pudo registrar el movimiento"}), 500
+
+    @app.post("/api/finance/planilla")
+    @require_legacy_auth
+    def create_payroll_entry():
+        data = request.get_json(silent=True)
+        if not isinstance(data, dict):
+            return jsonify({"error": "Envia un objeto JSON valido"}), 400
+        try:
+            salary = _finance_amount(data, "sueldo")
+            discounts = _finance_amount(data, "descuentos", allow_zero=True)
+            if discounts > salary:
+                raise ValueError("descuentos no puede superar el sueldo")
+            status = str(data.get("estado_pago") or "pendiente").strip().lower()
+            if status not in {"pendiente", "pagado"}:
+                raise ValueError("estado_pago debe ser pendiente o pagado")
+            payload = {
+                "nombre": _finance_text(data, "nombre", limit=120),
+                "cargo": _finance_text(data, "cargo", required=False, limit=100) or None,
+                "sueldo": salary,
+                "descuentos": discounts,
+                "fecha_pago": _finance_date(data, "fecha_pago"),
+                "estado_pago": status,
+            }
+            item = _insert_optional_table(bot, "planilla_personal", payload)
+            return jsonify(item), 201
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 400
+        except Exception as exc:
+            logger.exception("Error registrando planilla: %s", exc)
+            return jsonify({"error": "No se pudo registrar la planilla"}), 500
+
+    @app.post("/api/finance/margenes")
+    @require_legacy_auth
+    def create_product_margin():
+        data = request.get_json(silent=True)
+        if not isinstance(data, dict):
+            return jsonify({"error": "Envia un objeto JSON valido"}), 400
+        try:
+            raw_units = Decimal(str(data.get("unidades", 1)))
+            if not raw_units.is_finite() or raw_units != raw_units.to_integral_value() or raw_units < 1:
+                raise ValueError("unidades debe ser un entero mayor que cero")
+            if raw_units > 1000000:
+                raise ValueError("unidades supera el maximo permitido")
+            payload = {
+                "producto": _finance_text(data, "producto", limit=120),
+                "categoria": _finance_text(data, "categoria", required=False, limit=80) or None,
+                "precio_venta": _finance_amount(data, "precio_venta", allow_zero=True),
+                "costo_producto": _finance_amount(data, "costo_producto", allow_zero=True),
+                "unidades": int(raw_units),
+            }
+            item = _insert_optional_table(bot, "margenes_producto", payload)
+            return jsonify(item), 201
+        except (InvalidOperation, ValueError) as exc:
+            message = str(exc) or "unidades debe ser un entero mayor que cero"
+            return jsonify({"error": message}), 400
+        except Exception as exc:
+            logger.exception("Error registrando margen de producto: %s", exc)
+            return jsonify({"error": "No se pudo registrar el margen"}), 500
 
     @app.get("/api/logs")
     @require_legacy_auth
