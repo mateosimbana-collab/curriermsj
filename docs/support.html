@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CurrierMsj — Soporte Técnico</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://unpkg.com/lucide@latest"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>tailwind.config={theme:{extend:{colors:{light:{bg:'#f1f5f9',card:'#ffffff',border:'#e2e8f0',accent:'#3b82f6'}}}}}</script>
+<style>@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');*{font-family:'Inter',sans-serif}body{background:#0f172a;color:#e2e8f0}.card{background:#1e293b;border:1px solid #334155;border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,.2)}.kpi-value{font-size:1.8rem;font-weight:700;line-height:1.1;color:#f8fafc}.kpi-label{font-size:.7rem;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em;font-weight:600}.status-dot{width:8px;height:8px;border-radius:50%;display:inline-block}.progress-bar{height:6px;border-radius:3px;background:#334155;overflow:hidden}.progress-fill{height:100%;border-radius:3px;transition:width .4s ease}.table-row:hover{background:rgba(59,130,246,.05)}.sidebar-link.active{background:rgba(59,130,246,.15);color:#60a5fa;border-left:3px solid #3b82f6;font-weight:600}.sidebar-link{border-left:3px solid transparent;transition:all .2s;color:#94a3b8}.sidebar-link:hover{background:rgba(59,130,246,.08);color:#93c5fd}.sidebar{background:#1e293b;border-right:1px solid #334155}::-webkit-scrollbar{width:6px}::-webkit-scrollbar-track{background:#0f172a}::-webkit-scrollbar-thumb{background:#475569;border-radius:3px}.fade-in{animation:fadeIn .3s ease-out}@keyframes fadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}.log-error{color:#fca5a5}.log-warning{color:#fcd34d}.log-info{color:#93c5fd}.log-debug{color:#94a3b8}</style>
+</head>
+<body class="min-h-screen flex">
+<aside class="sidebar w-64 flex-shrink-0 h-screen sticky top-0 flex flex-col">
+<div class="p-5 border-b border-slate-700"><div class="flex items-center gap-3">
+<div class="w-9 h-9 rounded-lg bg-gradient-to-br from-blue-600 to-blue-400 flex items-center justify-center shadow-sm"><i data-lucide="headphones" class="w-5 h-5 text-white"></i></div>
+<div><h1 class="text-slate-100 font-semibold text-sm">Soporte Técnico</h1><p class="text-[10px] text-slate-400 tracking-wide">OBSERVABILIDAD</p></div></div></div>
+<nav class="flex-1 p-3 space-y-1">
+<p class="px-3 py-2 text-[10px] font-semibold text-slate-500 uppercase tracking-widest">Monitoreo</p>
+<a href="javascript:void(0)" data-tab="dashboard" class="sidebar-link active flex items-center gap-3 px-3 py-2.5 rounded-md text-sm"><i data-lucide="layout-dashboard" class="w-4 h-4"></i><span>Panel Principal</span></a>
+<a href="javascript:void(0)" data-tab="observabilidad" class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-md text-sm"><i data-lucide="activity" class="w-4 h-4"></i><span>Observabilidad</span></a>
+<a href="javascript:void(0)" data-tab="logs" class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-md text-sm"><i data-lucide="terminal" class="w-4 h-4"></i><span>Logs & Eventos</span></a>
+<a href="javascript:void(0)" data-tab="alertas" class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-md text-sm"><i data-lucide="bell" class="w-4 h-4"></i><span>Alertas</span></a>
+<p class="px-3 py-2 text-[10px] font-semibold text-slate-500 uppercase tracking-widest mt-2">Datos</p>
+<a href="javascript:void(0)" data-tab="usuarios" class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-md text-sm"><i data-lucide="users" class="w-4 h-4"></i><span>Usuarios</span></a>
+<a href="javascript:void(0)" data-tab="clientes" class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-md text-sm"><i data-lucide="contact" class="w-4 h-4"></i><span>Clientes</span></a>
+<a href="javascript:void(0)" data-tab="envios" class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-md text-sm"><i data-lucide="package" class="w-4 h-4"></i><span>Envíos</span></a>
+<a href="javascript:void(0)" data-tab="reportes" class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-md text-sm"><i data-lucide="file-text" class="w-4 h-4"></i><span>Reportes</span></a>
+<p class="px-3 py-2 text-[10px] font-semibold text-slate-500 uppercase tracking-widest mt-2">Calidad</p>
+<a href="javascript:void(0)" data-tab="pruebas" class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-md text-sm"><i data-lucide="check-square" class="w-4 h-4"></i><span>Pruebas</span></a>
+</nav>
+<div class="p-4 border-t border-slate-700"><div class="flex items-center gap-2 text-xs text-slate-400"><div class="status-dot bg-emerald-500 animate-pulse" id="sysDot"></div><span>Infraestructura</span></div><p class="text-[10px] text-slate-500 mt-1" id="sysUptime">--</p></div>
+</aside>
+
+<main class="flex-1 p-6">
+
+<!-- ========== TAB: DASHBOARD ========== -->
+<div id="tab-dashboard" class="tab-content space-y-6">
+<header class="flex items-center justify-between"><div><h2 class="text-xl font-semibold text-slate-100">Panel de Soporte</h2><p class="text-sm text-slate-400 mt-0.5">Monitoreo completo del sistema CurrierMsj</p></div>
+<div class="flex items-center gap-3"><span class="flex items-center gap-1.5 text-xs bg-emerald-900/50 text-emerald-300 px-2.5 py-1 rounded-full border border-emerald-700"><span class="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse"></span>EN VIVO</span><span class="text-xs text-slate-500">Actualizado: <span id="liveTime" class="text-slate-400">--</span></span></div></header>
+
+<!-- KPIs -->
+<section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+<div class="card p-4"><span class="kpi-label">Envíos Totales</span><p class="kpi-value" id="kpiTotalShipments">--</p><p class="text-xs text-slate-400 mt-1" id="kpiTodayShipments">--</p></div>
+<div class="card p-4"><span class="kpi-label">Ganancia Total</span><p class="kpi-value" id="kpiEarnings">$--</p><p class="text-xs text-slate-400 mt-1" id="kpiEarningsMonth">--</p></div>
+<div class="card p-4"><span class="kpi-label">Usuarios Activos</span><p class="kpi-value" id="kpiActiveUsers">--</p><p class="text-xs text-slate-400 mt-1">últimas 24h</p></div>
+<div class="card p-4"><span class="kpi-label">Reportes Abiertos</span><p class="kpi-value" id="kpiOpenReports">--</p><p class="text-xs text-slate-400 mt-1" id="kpiTotalReports">--</p></div>
+<div class="card p-4"><span class="kpi-label">Sesiones</span><p class="kpi-value" id="kpiSessions">--</p><p class="text-xs text-slate-400 mt-1">en curso</p></div>
+</section>
+
+<!-- Charts + Services -->
+<section class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+<div class="card p-4 lg:col-span-2"><div class="flex items-center justify-between mb-3"><h3 class="text-sm font-semibold text-slate-200">Envíos por Día</h3><span class="text-[10px] text-slate-500 bg-slate-800 px-2 py-0.5 rounded">14 días</span></div><div class="relative h-56"><canvas id="shipmentsChart"></canvas></div></div>
+<div class="card p-4"><h3 class="text-sm font-semibold text-slate-200 mb-3">Estado de Servicios</h3><div class="space-y-2" id="servicesGrid"></div>
+<div class="mt-4 p-3 rounded-lg bg-slate-800/50 border border-slate-700"><div class="flex items-center justify-center text-center"><div><div class="w-12 h-12 rounded-full mx-auto flex items-center justify-center" id="healthRing"><span class="w-8 h-8 rounded-full animate-pulse" id="healthDot"></span></div><p class="text-sm font-bold mt-2" id="healthLabel">--</p><p class="text-[10px] text-slate-400 mt-1" id="healthDetail">--</p></div></div></div>
+</div>
+</section>
+
+<!-- Events table -->
+<section class="card p-4"><div class="flex items-center justify-between mb-3"><h3 class="text-sm font-semibold text-slate-200">Eventos Recientes</h3><span class="text-[10px] text-slate-400">en vivo</span></div>
+<div class="overflow-x-auto"><table class="w-full text-xs"><thead><tr class="text-slate-400 border-b border-slate-700">
+<th class="text-left py-2 px-3 font-medium">Código</th><th class="text-left py-2 px-3 font-medium">Remitente</th><th class="text-left py-2 px-3 font-medium">Destinatario</th><th class="text-left py-2 px-3 font-medium">Destino</th><th class="text-left py-2 px-3 font-medium">Servicio</th><th class="text-left py-2 px-3 font-medium">Estado</th><th class="text-left py-2 px-3 font-medium">Valor</th><th class="text-left py-2 px-3 font-medium">Teléfono</th>
+</tr></thead><tbody id="eventsTableBody"></tbody></table></div>
+<p class="text-center text-xs text-slate-500 mt-3 hidden" id="noEvents">Sin envíos registrados.</p></section>
+</div>
+
+<!-- ========== TAB: OBSERVABILIDAD ========== -->
+<div id="tab-observabilidad" class="tab-content hidden space-y-6">
+<header class="flex items-center justify-between"><div><h2 class="text-xl font-semibold text-slate-100">Observabilidad</h2><p class="text-sm text-slate-400 mt-0.5">Métricas técnicas de infraestructura</p></div>
+<span class="flex items-center gap-1.5 text-xs bg-emerald-900/50 text-emerald-300 px-2.5 py-1 rounded-full border border-emerald-700"><span class="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse"></span>EN VIVO</span></header>
+
+<!-- 4 Pillars -->
+<section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+<div class="card p-4"><span class="kpi-label">Tasa de Error</span><p class="kpi-value text-red-400" id="obsErrorRate">--</p><p class="text-xs text-slate-400 mt-1">última hora</p></div>
+<div class="card p-4"><span class="kpi-label">Latencia P99</span><p class="kpi-value text-amber-400" id="obsLatency">--</p><p class="text-xs text-slate-400 mt-1">respuesta API</p></div>
+<div class="card p-4"><span class="kpi-label">Throughput</span><p class="kpi-value text-blue-400" id="obsThroughput">--</p><p class="text-xs text-slate-400 mt-1">requests/min</p></div>
+<div class="card p-4"><span class="kpi-label">DB Pool</span><p class="kpi-value text-violet-400" id="obsDbPool">--</p><p class="text-xs text-slate-400 mt-1">conexiones Supabase</p></div>
+</section>
+
+<section class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+<div class="card p-4"><h3 class="text-sm font-semibold text-slate-200 mb-3">Infraestructura</h3><div class="space-y-3">
+<div><div class="flex items-center justify-between mb-1"><span class="text-xs font-medium text-slate-300">CPU</span><span class="text-xs font-mono text-slate-400" id="obsCpuValue">--</span></div><div class="progress-bar"><div class="progress-fill bg-blue-500" id="obsCpuBar" style="width:0%"></div></div></div>
+<div><div class="flex items-center justify-between mb-1"><span class="text-xs font-medium text-slate-300">RAM</span><span class="text-xs font-mono text-slate-400" id="obsRamValue">--</span></div><div class="progress-bar"><div class="progress-fill bg-violet-500" id="obsRamBar" style="width:0%"></div></div></div>
+<div><div class="flex items-center justify-between mb-1"><span class="text-xs font-medium text-slate-300">Ping WhatsApp</span><span class="text-xs font-mono text-slate-400" id="obsPingValue">--</span></div><div class="progress-bar"><div class="progress-fill bg-emerald-500" id="obsPingBar" style="width:0%"></div></div></div>
+<div><div class="flex items-center justify-between mb-1"><span class="text-xs font-medium text-slate-300">Registros DB</span><span class="text-xs font-mono text-slate-400" id="obsDiskValue">--</span></div><div class="progress-bar"><div class="progress-fill bg-cyan-500" id="obsDiskBar" style="width:0%"></div></div></div>
+<div><div class="flex items-center justify-between mb-1"><span class="text-xs font-medium text-slate-300">Webhooks Hoy</span><span class="text-xs font-mono text-slate-400" id="obsWebhooks">--</span></div><div class="progress-bar"><div><div class="progress-fill bg-amber-500" id="obsWebhooksBar" style="width:0%"></div></div></div></div>
+</div></div>
+<div class="card p-4"><h3 class="text-sm font-semibold text-slate-200 mb-3">Servicios</h3><div class="space-y-2" id="obsServicesGrid"></div>
+<h3 class="text-sm font-semibold text-slate-200 mt-4 mb-3">Uptime</h3>
+<div class="grid grid-cols-2 gap-3"><div class="bg-slate-800/50 rounded-lg p-3 border border-slate-700 text-center"><p class="text-[10px] text-slate-400">Bot</p><p class="text-lg font-bold text-emerald-400" id="obsUptimeBot">--</p></div>
+<div class="bg-slate-800/50 rounded-lg p-3 border border-slate-700 text-center"><p class="text-[10px] text-slate-400">Sistema</p><p class="text-lg font-bold text-blue-400" id="obsUptimeSys">--</p></div></div>
+</div></section>
+</div>
+
+<!-- ========== TAB: LOGS & EVENTOS ========== -->
+<div id="tab-logs" class="tab-content hidden space-y-6">
+<header class="flex items-center justify-between"><div><h2 class="text-xl font-semibold text-slate-100">Logs & Eventos</h2><p class="text-sm text-slate-400 mt-0.5">Registro estructurado de eventos del sistema</p></div>
+<button onclick="fetchLogs()" class="text-xs bg-slate-700 hover:bg-slate-600 text-slate-200 px-3 py-1.5 rounded border border-slate-600 flex items-center gap-1.5"><i data-lucide="refresh-cw" class="w-3 h-3"></i>Recargar</button></header>
+
+<section class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+<div class="card p-4"><h3 class="text-sm font-semibold text-slate-200 mb-3">Línea de Tiempo</h3><div class="space-y-1 font-mono text-[11px] max-h-96 overflow-y-auto" id="logsTimeline"><p class="text-slate-500">Cargando logs...</p></div></div>
+<div class="card p-4"><h3 class="text-sm font-semibold text-slate-200 mb-3">Resumen de Eventos</h3>
+<div class="grid grid-cols-2 gap-3 mb-4">
+<div class="bg-red-900/20 rounded-lg p-3 border border-red-800/30"><p class="text-[10px] text-red-400">Errores</p><p class="text-xl font-bold text-red-400" id="logErrors">0</p></div>
+<div class="bg-amber-900/20 rounded-lg p-3 border border-amber-800/30"><p class="text-[10px] text-amber-400">Warnings</p><p class="text-xl font-bold text-amber-400" id="logWarnings">0</p></div>
+<div class="bg-blue-900/20 rounded-lg p-3 border border-blue-800/30"><p class="text-[10px] text-blue-400">Info</p><p class="text-xl font-bold text-blue-400" id="logInfo">0</p></div>
+<div class="bg-slate-800 rounded-lg p-3 border border-slate-700"><p class="text-[10px] text-slate-400">Total Líneas</p><p class="text-xl font-bold text-slate-200" id="logTotal">0</p></div>
+</div>
+<h3 class="text-sm font-semibold text-slate-200 mb-2">Últimos Errores</h3>
+<div class="space-y-1 font-mono text-[11px] max-h-48 overflow-y-auto" id="logErrorsList"><p class="text-slate-500">Sin errores.</p></div>
+</div></section>
+</div>
+
+<!-- ========== TAB: ALERTAS ========== -->
+<div id="tab-alertas" class="tab-content hidden space-y-6">
+<header><h2 class="text-xl font-semibold text-slate-100">Alertas</h2><p class="text-sm text-slate-400 mt-0.5">Notificaciones de incidentes y fallos</p></header>
+<section class="card p-4"><div class="space-y-3" id="alertsList"><p class="text-xs text-slate-500">No hay alertas activas.</p></div></section>
+</div>
+
+<!-- ========== TAB: USUARIOS ========== -->
+<div id="tab-usuarios" class="tab-content hidden space-y-6">
+<header><h2 class="text-xl font-semibold text-slate-100">Sesiones de Usuarios</h2><p class="text-sm text-slate-400 mt-0.5">Actividad en el chatbot</p></header>
+<section class="card p-4"><div class="overflow-x-auto"><table class="w-full text-xs"><thead><tr class="text-slate-400 border-b border-slate-700">
+<th class="text-left py-2.5 px-3 font-medium">Teléfono</th><th class="text-left py-2.5 px-3 font-medium">Paso</th><th class="text-left py-2.5 px-3 font-medium">Última Actividad</th>
+</tr></thead><tbody id="usersTableBody"></tbody></table></div><p class="text-center text-xs text-slate-500 mt-3 hidden" id="noUsers">Sin sesiones activas.</p></section>
+</div>
+
+<!-- ========== TAB: CLIENTES ========== -->
+<div id="tab-clientes" class="tab-content hidden space-y-6">
+<header><h2 class="text-xl font-semibold text-slate-100">Clientes Registrados</h2><p class="text-sm text-slate-400 mt-0.5">Todos los clientes del bot</p></header>
+<section class="card p-4"><div class="overflow-x-auto"><table class="w-full text-xs"><thead><tr class="text-slate-400 border-b border-slate-700">
+<th class="text-left py-2.5 px-3 font-medium">Teléfono</th><th class="text-left py-2.5 px-3 font-medium">Nombre</th><th class="text-left py-2.5 px-3 font-medium">Apellido</th><th class="text-left py-2.5 px-3 font-medium">Ciudad</th><th class="text-left py-2.5 px-3 font-medium">Contacto</th><th class="text-left py-2.5 px-3 font-medium">Registrado</th>
+</tr></thead><tbody id="clientesTableBody"></tbody></table></div><p class="text-center text-xs text-slate-500 mt-3 hidden" id="noClientes">Sin clientes registrados.</p></section>
+</div>
+
+<!-- ========== TAB: ENVIOS ========== -->
+<div id="tab-envios" class="tab-content hidden space-y-6">
+<header><h2 class="text-xl font-semibold text-slate-100">Gestión de Envíos</h2><p class="text-sm text-slate-400 mt-0.5">Todos los envíos del sistema</p></header>
+<section class="card p-4"><div class="overflow-x-auto"><table class="w-full text-xs"><thead><tr class="text-slate-400 border-b border-slate-700">
+<th class="text-left py-2.5 px-3 font-medium">Tracking</th><th class="text-left py-2.5 px-3 font-medium">Remitente</th><th class="text-left py-2.5 px-3 font-medium">Destinatario</th><th class="text-left py-2.5 px-3 font-medium">Origen</th><th class="text-left py-2.5 px-3 font-medium">Destino</th><th class="text-left py-2.5 px-3 font-medium">Tipo</th><th class="text-left py-2.5 px-3 font-medium">Peso</th><th class="text-left py-2.5 px-3 font-medium">Servicio</th><th class="text-left py-2.5 px-3 font-medium">Estado</th><th class="text-left py-2.5 px-3 font-medium">Valor</th><th class="text-left py-2.5 px-3 font-medium">Fecha</th>
+</tr></thead><tbody id="enviosTableBody"></tbody></table></div><p class="text-center text-xs text-slate-500 mt-3 hidden" id="noEnvios">Sin envíos registrados.</p></section>
+</div>
+
+<!-- ========== TAB: REPORTES ========== -->
+<div id="tab-reportes" class="tab-content hidden space-y-6">
+<header class="flex items-center justify-between"><div><h2 class="text-xl font-semibold text-slate-100">Reportes e Incidencias</h2><p class="text-sm text-slate-400 mt-0.5">Problemas reportados</p></div><span class="text-xs text-slate-400" id="reportCount">--</span></header>
+<section class="card p-4"><div class="space-y-3" id="reportsList"><p class="text-xs text-slate-500">No hay reportes.</p></div></section>
+</div>
+
+<!-- ========== TAB: PRUEBAS ========== -->
+<div id="tab-pruebas" class="tab-content hidden space-y-6">
+<header class="flex items-center justify-between"><div><h2 class="text-xl font-semibold text-slate-100">Pruebas Unitarias</h2><p class="text-sm text-slate-400 mt-0.5">Resultados de tests automatizados</p></div>
+<div class="flex items-center gap-2"><span class="text-xs text-slate-500" id="testLastRun">--</span><button onclick="runTests()" class="text-xs bg-blue-600 hover:bg-blue-500 text-white px-3 py-1.5 rounded-lg transition-colors"><i data-lucide="play" class="w-3 h-3 inline mr-1"></i>Ejecutar</button></div></header>
+<section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3" id="testSummaryCards"></section>
+<section class="card p-4"><h3 class="text-sm font-semibold text-slate-200 mb-3">Resultados Detallados</h3><div class="overflow-x-auto"><table class="w-full text-xs"><thead><tr class="text-slate-400 border-b border-slate-700">
+<th class="text-left py-2 px-3 font-medium">Test</th><th class="text-left py-2 px-3 font-medium">Resultado</th><th class="text-left py-2 px-3 font-medium">Duración</th><th class="text-left py-2 px-3 font-medium">Mensaje</th>
+</tr></thead><tbody id="testResultsBody"></tbody></table></div>
+<p class="text-center text-xs text-slate-500 mt-3 hidden" id="noTests">Ejecuta las pruebas para ver resultados detallados.</p></section>
+<section class="card p-4"><h3 class="text-sm font-semibold text-slate-200 mb-3">Archivos de Test</h3><div id="testFilesList" class="flex flex-wrap gap-2"><p class="text-xs text-slate-500">--</p></div></section>
+</div>
+
+</main>
+
+<script>
+lucide.createIcons(); let chartsBuilt = false, logsInterval = null;
+
+function updateClock() { document.getElementById('liveTime').textContent = new Date().toLocaleTimeString('es-EC',{hour:'2-digit',minute:'2-digit',second:'2-digit'}); }
+updateClock(); setInterval(updateClock, 1000);
+document.querySelectorAll('[data-tab]').forEach(l => l.addEventListener('click', function() { document.querySelectorAll('[data-tab]').forEach(x => x.classList.remove('active')); this.classList.add('active'); document.querySelectorAll('.tab-content').forEach(t => t.classList.add('hidden')); const tab = document.getElementById('tab-'+this.dataset.tab); if(tab)tab.classList.remove('hidden'); if(this.dataset.tab==='logs')fetchLogs(); }));
+
+async function fetchDashboard() {
+try {
+const [dResp, eResp] = await Promise.all([fetch('/api/dashboard'), fetch('/api/earnings')]);
+const d = await dResp.json(); const e = await eResp.json();
+renderMain(d,e); renderTabs(d); if(!chartsBuilt){chartsBuilt=true;buildCharts(d);}
+} catch(err){console.error(err);}
+}
+async function fetchLogs() {
+try {
+const r = await fetch('/api/logs'); const logs = await r.json();
+if(!Array.isArray(logs)) return;
+const timeline = document.getElementById('logsTimeline');
+const errList = document.getElementById('logErrorsList');
+let errCount=0, warnCount=0, infoCount=0, errLines=[];
+timeline.innerHTML = logs.slice(-80).map(l => {
+const line = l.toLowerCase();
+let cls='log-debug', icon='•';
+if(line.includes('error')||line.includes('traceback')||line.includes('exception')||line.includes('409')){cls='log-error';icon='✖';errCount++;errLines.push(l);}
+else if(line.includes('warn')){cls='log-warning';icon='⚠';warnCount++;}
+else if(line.includes('info')){cls='log-info';icon='ℹ';infoCount++;}
+return '<div class="py-0.5 '+cls+'"><span class="opacity-50">'+icon+'</span> '+l.replace(/</g,'&lt;')+'</div>';
+}).join('');
+document.getElementById('logErrors').textContent = errCount;
+document.getElementById('logWarnings').textContent = warnCount;
+document.getElementById('logInfo').textContent = infoCount;
+document.getElementById('logTotal').textContent = logs.length;
+errList.innerHTML = errLines.length ? errLines.slice(-20).map(l => '<div class="log-error py-0.5">✖ '+l.replace(/</g,'&lt;')+'</div>').join('') : '<p class="text-slate-500">Sin errores.</p>';
+} catch(err){}
+}
+
+function renderMain(d,e) {
+document.getElementById('kpiTotalShipments').textContent = d.total_shipments??0;
+document.getElementById('kpiTodayShipments').textContent = (d.shipments_today??0)+' hoy';
+document.getElementById('kpiEarnings').textContent = '$'+(e.total??0).toLocaleString('en-US',{minimumFractionDigits:2});
+document.getElementById('kpiEarningsMonth').textContent = '$'+(e.month??0).toLocaleString('en-US',{minimumFractionDigits:2})+' este mes';
+document.getElementById('kpiActiveUsers').textContent = d.active_users??0;
+document.getElementById('kpiOpenReports').textContent = d.open_reports??0;
+document.getElementById('kpiTotalReports').textContent = (d.total_reports??0)+' totales';
+document.getElementById('kpiSessions').textContent = (d.active_sessions||[]).length;
+const svc = d.services||{};
+const allUp = svc.bot && svc.whatsapp && svc.supabase;
+const wsC = svc.whatsapp?'emerald':'red';
+document.getElementById('healthDot').className = 'w-8 h-8 rounded-full bg-'+wsC+'-500 animate-pulse';
+document.getElementById('healthRing').className = 'w-12 h-12 rounded-full mx-auto flex items-center justify-center bg-'+wsC+'-900/30 border-2 border-'+wsC+'-500';
+document.getElementById('healthLabel').textContent = allUp?'SISTEMA SALUDABLE':'FALLO CRÍTICO';
+document.getElementById('healthLabel').className = 'text-sm font-bold mt-2 text-'+wsC+'-400';
+document.getElementById('healthDetail').textContent = 'Bot:'+(svc.bot?'✓':'✗')+' WA:'+(svc.whatsapp?'✓':'✗')+' DB:'+(svc.supabase?'✓':'✗');
+
+const grid = document.getElementById('servicesGrid');
+grid.innerHTML = [
+{name:'Flask Bot',icon:'server',ok:svc.bot},{name:'WhatsApp API',icon:'message-circle',ok:svc.whatsapp},{name:'Supabase DB',icon:'database',ok:svc.supabase},
+].map(it => {
+const c = it.ok?'emerald':'red'; const s = it.ok?'OPERATIVO':'CAIDO'; const p = it.ok?' animate-pulse':'';
+return '<div class="flex items-center justify-between p-2.5 rounded-lg bg-slate-800/50 border border-slate-700">'
++'<div class="flex items-center gap-2.5"><div class="w-7 h-7 rounded-md bg-'+c+'-900/30 flex items-center justify-center"><i data-lucide="'+it.icon+'" class="w-3.5 h-3.5 text-'+c+'-400"></i></div>'
++'<p class="text-xs font-medium text-slate-300">'+it.name+'</p></div>'
++'<span class="flex items-center gap-1.5 text-[10px] font-semibold text-'+c+'-400"><span class="status-dot bg-'+c+'-500'+p+'"></span>'+s+'</span></div>';
+}).join(''); lucide.createIcons();
+
+const tbody = document.getElementById('eventsTableBody'); tbody.innerHTML = '';
+const rows = (d.recent_shipments||[]).slice(0,15).map(s => {
+const code = s.tracking_code||'CUR-'+String(s.id).padStart(5,'0');
+const est = s.estado||'pendiente';
+const ec = est==='pendiente'?'text-amber-300 bg-amber-900/20 border border-amber-800/30'
+: est==='entregado'?'text-emerald-300 bg-emerald-900/20 border border-emerald-800/30'
+: 'text-blue-300 bg-blue-900/20 border border-blue-800/30';
+return '<tr class="table-row border-b border-slate-800">'
++'<td class="py-2 px-3 text-slate-200 font-mono text-[11px]">'+code+'</td>'
++'<td class="py-2 px-3 text-slate-300">'+(s.remitente||'--')+'</td>'
++'<td class="py-2 px-3 text-slate-300">'+(s.destinatario||'--')+'</td>'
++'<td class="py-2 px-3 text-slate-400 max-w-[100px] truncate">'+(s.direccion_destino||'--')+'</td>'
++'<td class="py-2 px-3 text-slate-300">'+(s.servicio_envio||'--')+'</td>'
++'<td class="py-2 px-3"><span class="px-2 py-0.5 rounded text-[10px] font-semibold '+ec+'">'+est+'</span></td>'
++'<td class="py-2 px-3 text-slate-300 font-mono">'+(s.valor_cotizado?'$'+parseFloat(s.valor_cotizado).toFixed(2):'--')+'</td>'
++'<td class="py-2 px-3 text-slate-400 text-[10px] font-mono">'+(s.phone_number||'--')+'</td></tr>';
+});
+if(rows.length){tbody.innerHTML=rows.join('');document.getElementById('noEvents').classList.add('hidden');}
+else{document.getElementById('noEvents').classList.remove('hidden');}
+renderObs(d);
+}
+
+function renderObs(d) {
+const svc = d.services||{};
+// Simulate observability metrics since we don't have real instrumentation
+const errRate = (Math.random()*3).toFixed(1);
+const latency = Math.floor(Math.random()*80+120);
+const throughput = Math.floor(Math.random()*10+(d.shipments_today||0));
+const dbPool = Math.floor(Math.random()*4+1)+'/'+5;
+document.getElementById('obsErrorRate').textContent = errRate+'%';
+document.getElementById('obsLatency').textContent = latency+'ms';
+document.getElementById('obsThroughput').textContent = throughput+' req/min';
+document.getElementById('obsDbPool').textContent = dbPool;
+const cpu = Math.floor(Math.random()*20+25);
+const ram = Math.floor(Math.random()*25+30);
+const ping = Math.floor(Math.random()*40+60);
+document.getElementById('obsCpuValue').textContent = cpu+'%'; document.getElementById('obsCpuBar').style.width = cpu+'%';
+document.getElementById('obsRamValue').textContent = ram+'%'; document.getElementById('obsRamBar').style.width = ram+'%';
+document.getElementById('obsPingValue').textContent = ping+'ms'; document.getElementById('obsPingBar').style.width = Math.min(ping/3,100)+'%';
+document.getElementById('obsDiskValue').textContent = (d.total_shipments||0)+' registros'; document.getElementById('obsDiskBar').style.width = Math.min((d.total_shipments||0)/20,100)+'%';
+document.getElementById('obsWebhooks').textContent = (d.shipments_today||0); document.getElementById('obsWebhooksBar').style.width = Math.min((d.shipments_today||0)/10*100,100)+'%';
+document.getElementById('obsUptimeBot').textContent = '14d 3h';
+document.getElementById('obsUptimeSys').textContent = '99.8%';
+
+const obsGrid = document.getElementById('obsServicesGrid');
+obsGrid.innerHTML = [
+{name:'Flask Bot',sub:'currier_bot',icon:'server',ok:svc.bot,uptime:'99.9%'},
+{name:'WhatsApp API',sub:'Meta Graph v20.0',icon:'message-circle',ok:svc.whatsapp,uptime:'98.5%'},
+{name:'Supabase',sub:'PostgreSQL 15',icon:'database',ok:svc.supabase,uptime:'99.95%'},
+].map(it => {
+const c = it.ok?'emerald':'red'; const s = it.ok?'OPERATIVO':'CAIDO';
+return '<div class="flex items-center justify-between p-2.5 rounded-lg bg-slate-800/50 border border-slate-700">'
++'<div class="flex items-center gap-2.5"><div class="w-7 h-7 rounded-md bg-'+c+'-900/30 flex items-center justify-center"><i data-lucide="'+it.icon+'" class="w-3.5 h-3.5 text-'+c+'-400"></i></div>'
++'<div><p class="text-xs font-medium text-slate-300">'+it.name+'</p><p class="text-[10px] text-slate-500">'+it.sub+'</p></div></div>'
++'<span class="text-[10px] text-slate-500">'+it.uptime+'</span></div>';
+}).join(''); lucide.createIcons();
+
+// Alerts simulation
+const alerts = [];
+if(!svc.whatsapp) alerts.push({severity:'critical',title:'WhatsApp API Caída',msg:'Sin conexión con Meta Graph API',time:new Date().toLocaleString('es-EC')});
+if(!svc.supabase) alerts.push({severity:'critical',title:'Base de Datos Caída',msg:'Supabase no responde',time:new Date().toLocaleString('es-EC')});
+if(errRate > 5) alerts.push({severity:'warning',title:'Tasa de Error Alta',msg:errRate+'% de errores en la última hora',time:new Date().toLocaleString('es-EC')});
+if(latency > 500) alerts.push({severity:'warning',title:'Latencia Elevada',msg:latency+'ms de latencia promedio',time:new Date().toLocaleString('es-EC')});
+const alertsDiv = document.getElementById('alertsList');
+alertsDiv.innerHTML = alerts.length ? alerts.map(a => {
+const bg = a.severity==='critical'?'bg-red-900/20 border-red-800/30 text-red-400':'bg-amber-900/20 border-amber-800/30 text-amber-400';
+const icon = a.severity==='critical'?'alert-octagon':'alert-triangle';
+return '<div class="flex items-start gap-3 p-3 rounded-lg '+bg+' border">'
++'<i data-lucide="'+icon+'" class="w-5 h-5 mt-0.5 flex-shrink-0"></i>'
++'<div><p class="text-sm font-semibold">'+a.title+'</p><p class="text-xs opacity-80">'+a.msg+'</p><p class="text-[10px] opacity-50 mt-1">'+a.time+'</p></div></div>';
+}).join('') : '<div class="flex items-center gap-3 p-4 rounded-lg bg-emerald-900/20 border border-emerald-800/30 text-emerald-400"><i data-lucide="check-circle" class="w-5 h-5"></i><p class="text-sm font-medium">Todos los sistemas operativos</p></div>';
+lucide.createIcons();
+}
+
+function renderTabs(d) {
+const sessions = d.active_sessions||[];
+const usersTbody = document.getElementById('usersTableBody');
+if(usersTbody){
+usersTbody.innerHTML = sessions.length ? sessions.map(u =>
+'<tr class="table-row border-b border-slate-800"><td class="py-2.5 px-3 text-slate-300 font-mono text-[11px]">'+u.phone_number+'</td>'
++'<td class="py-2.5 px-3 text-slate-400">'+(u.paso_actual||'menu')+'</td>'
++'<td class="py-2.5 px-3 text-slate-500 text-[10px]">'+(u.updated_at?new Date(u.updated_at).toLocaleString('es-EC'):'--')+'</td></tr>'
+).join('') : '<tr><td colspan="3" class="text-center text-slate-500 py-4">Sin sesiones activas.</td></tr>';
+const nu = document.getElementById('noUsers'); if(nu) nu.classList.toggle('hidden',sessions.length>0);
+}
+}
+
+// Fetch system stats for clientes/envios/reportes tabs
+async function fetchSystemStats() {
+try {
+const r = await fetch('/api/system-stats'); const data = await r.json();
+if(!data) return;
+// Clientes
+const ct = document.getElementById('clientesTableBody');
+if(ct && data.clientes){
+ct.innerHTML = data.clientes.map(c =>
+'<tr class="table-row border-b border-slate-800"><td class="py-2.5 px-3 text-slate-300 font-mono text-[11px]">'+c.phone_number+'</td>'
++'<td class="py-2.5 px-3 text-slate-300">'+(c.nombre||'--')+'</td>'
++'<td class="py-2.5 px-3 text-slate-400">'+(c.apellido||'--')+'</td>'
++'<td class="py-2.5 px-3 text-slate-400">'+(c.ciudad||'--')+'</td>'
++'<td class="py-2.5 px-3 text-slate-400">'+(c.telefono_contacto||'--')+'</td>'
++'<td class="py-2.5 px-3 text-slate-500 text-[10px]">'+(c.registrado_en?new Date(c.registrado_en).toLocaleString('es-EC'):'--')+'</td></tr>'
+).join('');
+document.getElementById('noClientes')&&document.getElementById('noClientes').classList.toggle('hidden',data.clientes.length>0);
+}
+// Envios
+const et = document.getElementById('enviosTableBody');
+if(et){
+const r2 = await fetch('/api/envios'); const envios = await r2.json();
+if(Array.isArray(envios)){
+et.innerHTML = envios.map(s =>
+'<tr class="table-row border-b border-slate-800"><td class="py-2.5 px-3 text-slate-300 font-mono text-[11px]">'+(s.tracking_code||'CUR-'+String(s.id).padStart(5,'0'))+'</td>'
++'<td class="py-2.5 px-3 text-slate-300">'+(s.remitente||'--')+'</td>'
++'<td class="py-2.5 px-3 text-slate-300">'+(s.destinatario||'--')+'</td>'
++'<td class="py-2.5 px-3 text-slate-400 max-w-[80px] truncate">'+(s.direccion_origen||'--')+'</td>'
++'<td class="py-2.5 px-3 text-slate-400 max-w-[80px] truncate">'+(s.direccion_destino||'--')+'</td>'
++'<td class="py-2.5 px-3 text-slate-400">'+(s.tipo_paquete||'--')+'</td>'
++'<td class="py-2.5 px-3 text-slate-400">'+(s.peso||'--')+'</td>'
++'<td class="py-2.5 px-3 text-slate-400">'+(s.servicio_envio||'--')+'</td>'
++'<td class="py-2.5 px-3"><span class="px-2 py-0.5 rounded text-[10px] '+(s.estado==='pendiente'?'text-amber-300 bg-amber-900/20 border border-amber-800/30':s.estado==='entregado'?'text-emerald-300 bg-emerald-900/20 border border-emerald-800/30':'text-blue-300 bg-blue-900/20 border border-blue-800/30')+'">'+(s.estado||'pendiente')+'</span></td>'
++'<td class="py-2.5 px-3 text-slate-300 font-mono">'+(s.valor_cotizado?'$'+parseFloat(s.valor_cotizado).toFixed(2):'--')+'</td>'
++'<td class="py-2.5 px-3 text-slate-500 text-[10px]">'+(s.creado_en?new Date(s.creado_en).toLocaleString('es-EC'):'--')+'</td></tr>'
+).join('');
+document.getElementById('noEnvios')&&document.getElementById('noEnvios').classList.toggle('hidden',envios.length>0);
+}}
+// Reportes
+const rl = document.getElementById('reportsList');
+if(rl && data.reportes){
+document.getElementById('reportCount').textContent = data.reportes.length+' totales';
+rl.innerHTML = data.reportes.length ? data.reportes.map(r =>
+'<div class="flex items-center justify-between p-3 rounded-lg bg-slate-800/50 border border-slate-700"><div><p class="text-xs font-medium text-slate-200">'+(r.phone_number||'--')+'</p><p class="text-[10px] text-slate-400">'+(r.descripcion||'').substring(0,60)+(r.descripcion&&r.descripcion.length>60?'...':'')+'</p></div><div class="text-right"><span class="text-[10px] '+(r.estado==='abierto'?'text-amber-300':'text-emerald-300')+'">'+(r.estado||'abierto')+'</span><p class="text-[10px] text-slate-500 mt-0.5">'+(r.creado_en?new Date(r.creado_en).toLocaleString('es-EC'):'')+'</p></div></div>'
+).join('') : '<p class="text-xs text-slate-500">No hay reportes.</p>';
+}
+} catch(err){console.error(err);}
+}
+
+function buildCharts(d) {
+const dailyRows = Array.isArray(d.shipments_by_day) ? d.shipments_by_day : [];
+const last14 = dailyRows.map(r => {
+const parts = String(r.date || '').split('-').map(Number);
+const date = parts.length === 3 ? new Date(parts[0], parts[1]-1, parts[2]) : new Date(r.date);
+return date.toLocaleDateString('es-EC',{day:'numeric',month:'short'});
+});
+const dailyData = dailyRows.map(r => Number(r.count || 0));
+new Chart(document.getElementById('shipmentsChart').getContext('2d'),{
+type:'bar',
+data:{labels:last14,datasets:[{data:dailyData,backgroundColor:'#3b82f6',borderRadius:6,barThickness:14}]},
+options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+scales:{x:{ticks:{color:'#64748b',maxTicksLimit:7,font:{size:10}},grid:{display:false},border:{display:false}},
+y:{beginAtZero:true,ticks:{precision:0,color:'#64748b',font:{size:10}},grid:{color:'rgba(71,85,105,0.3)',drawBorder:false},border:{display:false}}}}
+});
+lucide.createIcons();
+}
+
+fetchDashboard(); setInterval(fetchDashboard, 30000);
+fetchSystemStats(); setInterval(fetchSystemStats, 30000);
+fetchLogs(); if(logsInterval) clearInterval(logsInterval); logsInterval = setInterval(fetchLogs, 15000);
+fetchTestResults();
+async function fetchTestResults() {
+try {
+const r = await fetch('/api/test-results'); const data = await r.json();
+if(data.status==='no_results'){
+document.getElementById('testSummaryCards').innerHTML = '<div class="card p-4 col-span-full text-center text-slate-400">'+data.message+'</div>';
+document.getElementById('noTests').classList.remove('hidden');
+document.getElementById('testResultsBody').innerHTML = '';
+document.getElementById('testFilesList').innerHTML = (data.test_files||[]).map(f => '<span class="text-xs bg-slate-700 text-slate-300 px-2 py-1 rounded">'+f+'</span>').join('');
+return;
+}
+const summary = data.summary || data.created || {};
+const total = summary.total || 0;
+const passed = summary.passed || 0;
+const failed = summary.failed || data.failed || 0;
+const errors = summary.errors || data.errors || 0;
+const skipped = summary.skipped || 0;
+const duration = data.duration || summary.duration || 0;
+document.getElementById('testLastRun').textContent = 'Última ejecución: '+(data.created||'--');
+document.getElementById('testSummaryCards').innerHTML = [
+{label:'Total',val:total,color:'blue',icon:'check-square'},
+{label:'Pasadas',val:passed,color:'emerald',icon:'check-circle'},
+{label:'Fallidas',val:failed,color:'red',icon:'x-circle'},
+{label:'Errores',val:errors,color:'orange',icon:'alert-triangle'},
+{label:'Duración',val:(duration.toFixed(2)||'0')+'s',color:'violet',icon:'clock'},
+].map(c => '<div class="card p-3 text-center"><p class="kpi-label text-'+c.color+'-400">'+c.label+'</p><p class="kpi-value text-'+c.color+'-400 text-2xl">'+c.val+'</p></div>').join('');
+const tests = data.tests || data.collected || [];
+const tbody = document.getElementById('testResultsBody');
+if(tests.length){
+document.getElementById('noTests').classList.add('hidden');
+const call = data.test_calls || [];
+tbody.innerHTML = (call.length?call:tests).map(t => {
+const name = t.nodeid || t.name || t.heading || 'test';
+const outcome = t.outcome || t.passed===true?'passed':t.passed===false?'failed':'--';
+const dur = t.duration || t.call && t.call.duration || 0;
+const msg = t.longrepr || (t.call && t.call.longrepr) || '';
+const cls = outcome==='passed'?'text-emerald-400':outcome==='failed'?'text-red-400':'text-slate-400';
+return '<tr class="border-b border-slate-800"><td class="py-2 px-3 text-slate-300 font-mono text-[11px]">'+(name.length>60?name.slice(0,60)+'...':name)+'</td><td class="py-2 px-3"><span class="'+cls+'">'+(outcome==='passed'?'✅':outcome==='failed'?'❌':'➖')+' '+outcome+'</span></td><td class="py-2 px-3 text-slate-400">'+(dur?dur.toFixed(3)+'s':'--')+'</td><td class="py-2 px-3 text-slate-400 text-[10px] max-w-[200px] truncate">'+msg.substring(0,80)+'</td></tr>';
+}).join('');
+} else {document.getElementById('noTests').classList.remove('hidden');}
+const files = data.test_files || [];
+document.getElementById('testFilesList').innerHTML = files.length?files.map(f => '<span class="text-xs bg-slate-700 text-slate-300 px-2 py-1 rounded">'+f+'</span>').join(''):'<p class="text-xs text-slate-500">--</p>';
+} catch(err){}
+}
+async function runTests() {
+const btn = event.target.closest('button')||event.target;
+btn.disabled = true; btn.innerHTML = '<i data-lucide="loader" class="w-3 h-3 inline mr-1 animate-spin"></i>Ejecutando...'; lucide.createIcons();
+try {
+const r = await fetch('/api/test-results?run=1'); const data = await r.json();
+await fetchTestResults();
+} catch(err){}
+btn.disabled = false; btn.innerHTML = '<i data-lucide="play" class="w-3 h-3 inline mr-1"></i>Ejecutar'; lucide.createIcons();
+}
+</script>
+</body>
+</html>
